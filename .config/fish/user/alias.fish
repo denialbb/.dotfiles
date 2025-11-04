@@ -10,6 +10,8 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 
+alias tree='tree -C'
+
 # Tools
 alias d='docker'
 alias r='rails'
