@@ -15,9 +15,8 @@ abbr --add uvm "uv run manage.py"
 
 abbr --add nmt nmtui
 abbr --add nmc nmcli
+abbr --add n nvim
 
-# Since `ls` shows a '/' after a directory's name
-abbr --add ls "ls -hN --color=auto --group-directories-first"
 abbr --add ll "eza --group-directories-first -l"
 abbr --add lt "eza --group-directories-first -T -L=2"
 abbr --add lti "eza --group-directories-first -T -L=2 --icons=auto"
@@ -34,3 +33,4 @@ abbr --add copy wl-copy
 abbr --add pkg "pacman -Q | fzf"
 abbr --add fnt "fc-list | fzf"
 abbr --add bt "upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep percentage | awk '{print $2}'"
+abbr --add srcfish "source ~/.config/fish/config.fish"
