@@ -59,6 +59,13 @@ alias pac='sudo pacman -Syu'
 
 alias srcfish='source ~/.config/fish/config.fish'
 
+function gc
+    read -P (set_color yellow)"Commit message: "(set_color normal) msg
+    if test -n "$msg"
+        git commit -m msg
+    end
+end
+
 function gpa
     read -P (set_color yellow)"Commit message: "(set_color normal) msg
     if test -n "$msg"
@@ -78,7 +85,6 @@ alias gcad='git commit -a --amend'
 alias gp='git push'
 alias ga='git add '
 alias gb='git branch '
-alias gc='git commit'
 alias gco='git checkout '
 alias gd='git diff'
 alias gs='git status'
@@ -112,3 +118,7 @@ function fe
 end
 
 bind ctrl-f fe
+
+function vpn
+    sudo openvpn --config ~/.config/openvpn/us-free-5.protonvpn.udp.ovpn --auth-user-pass ~/.config/openvpn/pass.txt &
+end

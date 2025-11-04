@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+dir=$1
+if [[ -z "$1" ]]; then
+  dir="$HOME/Projects $HOME/Work"
+fi
+
+selected=$(fd . $dir -d 1 | fzf)
+if [[ -z "$selected" ]]; then
+	exit 0
+fi
+
+selected_name=$(basename $selected | tr ":,. " "____")
+
+switch_to() {
+	if [[ -z "$ZELLIJ" ]]; then
+    #TODO 
+    echo "zellij is missing"
+	else
+    echo "zellij a $selected_name"
+  fi
+  cd "$selected" || exit
+}
+
+zellij kill-session $ZELLIJ_SESSION_NAME
+
+switch_to
+if zellij list-sessions | grep -q $selected_name; then
+    zellij a $selected_name
+else
+    zellij -s $selected_name
+fi

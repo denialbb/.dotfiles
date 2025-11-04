@@ -20,22 +20,32 @@ return {
       },
     }
     opts.fzf_opts = {
+      ["--no-scrollbar"] = "",
+      ["--info"] = "inline-right",
       ["--layout"] = "default",
-      ["--padding"] = "0",
-      ["--margin"] = "0",
+      ["--border"] = "none",
+      ["--pointer"] = ">",
+      ["--marker"] = "•",
+      ["--padding"] = "0%,0%",
+      ["--margin"] = "0%,0%",
     }
     opts.winopts = {
-      preview = {
-        vertical = "up:20%",
-        layout = "vertical",
-        border = "noborder",
-        title = false,
-        hidden = true,
-      },
-      width = 0.40,
-      height = 0.60,
-      backdrop = 80,
+      height = 0.28,
+      width = 0.25,
+      row = 0.38,
+      col = 0.50,
       border = "none",
+      preview = {
+        layout = "vertical",
+        vertical = "up:48%",
+        hidden = "hidden",
+        win_options = { -- Remove preview padding
+          winblend = 50,
+        },
+      },
+      win_options = {
+        winblend = 50,
+      },
     }
   end,
 }
