@@ -6,6 +6,8 @@ vim.keymap.set({ "n", "x" }, ":", ";")
 vim.keymap.set("n", "L", "vg_", { desc = "Select to end of line" })
 vim.keymap.set("n", "<C-u>", "<C-u>zz", { desc = "scroll up and center" })
 vim.keymap.set("n", "<C-d>", "<C-d>zz", { desc = "scroll down and center" })
+vim.keymap.set("n", "{", "{zz", { desc = "scroll up and center" })
+vim.keymap.set("n", "}", "}zz", { desc = "scroll down and center" })
 vim.keymap.set("n", "n", "nzzzv", { desc = "keep cursor centered" })
 vim.keymap.set("n", "N", "Nzzzv", { desc = "keep cursor centered" })
 vim.keymap.set(

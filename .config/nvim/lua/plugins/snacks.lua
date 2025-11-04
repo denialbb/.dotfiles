@@ -3,7 +3,7 @@ return {
   opts = {
     ---@class snacks.dashboard.Config
     dashboard = {
-      width = 25,
+      width = 40,
       row = nil, -- dashboard position. nil for center
       col = nil, -- dashboard position. nil for center
       pane_gap = 8, -- empty columns between vertical panes
@@ -19,30 +19,35 @@ return {
         ---@type snacks.dashboard.Item[]
         keys = {
           {
-            icon = " ",
+            -- icon = " ",
             key = "f",
-            desc = "Find File",
+            desc = "files",
             action = ":lua Snacks.dashboard.pick('files')",
           },
           {
-            icon = " ",
+            -- icon = " ",
             key = "n",
-            desc = "New File",
+            desc = "new file",
             action = ":ene | startinsert",
           },
           {
-            icon = " ",
+            -- icon = " ",
             key = "g",
-            desc = "Find Text",
+            desc = "search text",
             action = ":lua Snacks.dashboard.pick('live_grep')",
           },
           {
-            icon = " ",
+            -- icon = " ",
             key = "s",
-            desc = "Restore Session",
+            desc = "restore",
             section = "session",
           },
-          { icon = " ", key = "q", desc = "Quit", action = ":qa" },
+          {
+            -- icon = " ",
+            key = "q",
+            desc = "quit",
+            action = ":qa",
+          },
         },
         --         header = [[
         --               $$ $$$$$ $$
@@ -71,7 +76,10 @@ return {
  ⣠⣿⠿⠛⠄⢀⣿⣿⣷⠘⢿⣿⣦⡀ ⢸⢿⣿⣿⣄ ⣸⣿⣿⡇⣪⣿⡿⠿⣿⣷⡄  
  ⠙⠃   ⣼⣿⡟  ⠈⠻⣿⣿⣦⣌⡇⠻⣿⣿⣷⣿⣿⣿ ⣿⣿⡇⠄⠛⠻⢷⣄ 
       ⢻⣿⣿⣄   ⠈⠻⣿⣿⣿⣷⣿⣿⣿⣿⣿⡟ ⠫⢿⣿⡆     
-       ⠻⣿⣿⣿⣿⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⡟⢀⣀⣤⣾⡿⠃     ]],
+       ⠻⣿⣿⣿⣿⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿      
+        ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃         
+         ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿          
+          ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟           ]],
         --      ⢰⣶  ⣶ ⢶⣆⢀⣶⠂⣶⡶⠶⣦⡄⢰⣶⠶⢶⣦  ⣴⣶
         --      ⢸⣿⠶⠶⣿ ⠈⢻⣿⠁ ⣿⡇ ⢸⣿⢸⣿⢶⣾⠏ ⣸⣟⣹⣧
         --      ⠸⠿  ⠿  ⠸⠿  ⠿⠷⠶⠿⠃⠸⠿⠄⠙⠷⠤⠿⠉⠉⠿⠆
@@ -79,14 +87,14 @@ return {
       },
       sections = {
         { section = "header" },
-        { section = "keys", gap = 1, padding = 1 },
-        -- {
-        --   icon = " ",
-        --   title = "Recent Files",
-        --   section = "recent_files",
-        --   indent = 2,
-        --   padding = 1,
-        -- },
+        { section = "keys", gap = 1, padding = 5 },
+        {
+          icon = " ",
+          title = "recent",
+          section = "recent_files",
+          indent = 4,
+          padding = 0,
+        },
         -- { section = "startup" },
       },
     },
