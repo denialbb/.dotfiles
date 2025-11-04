@@ -3,7 +3,7 @@ config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
 command = /usr/bin/fish
 
 # Font
-font-family = "SF Mono"
+font-family = "AnonymicePro Nerd Font Mono"
 font-style = Regular
 font-size = 11
 
