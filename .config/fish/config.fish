@@ -122,3 +122,7 @@ bind ctrl-f fe
 function vpn
     sudo openvpn --config ~/.config/openvpn/us-free-5.protonvpn.udp.ovpn --auth-user-pass ~/.config/openvpn/pass.txt &
 end
+
+for f in ~/.config/fish/user/*.fish
+    source $f
+end
