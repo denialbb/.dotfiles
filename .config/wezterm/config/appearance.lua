@@ -1,4 +1,4 @@
-local colors = require("colors.custom")
+-- local colors = require("colors.custom")
 
 return {
 	max_fps = 120,
@@ -7,15 +7,18 @@ return {
 	-- webgpu_preferred_adapter = gpu_adapters:pick_manual('Dx12', 'IntegratedGpu'),
 	-- webgpu_preferred_adapter = gpu_adapters:pick_manual('Gl', 'Other'),
 	underline_thickness = "1.5pt",
+	-- theme
+	-- colors = colors, -- for loading the custom color scheme
+	-- color_scheme = "Catppuccin Mocha",
+	-- color_scheme = "Material (Gogh)",
+	color_scheme = "MaterialOcean",
 
 	-- cursor
 	animation_fps = 120,
 	cursor_blink_ease_in = "EaseOut",
 	cursor_blink_ease_out = "EaseOut",
 	default_cursor_style = "BlinkingBlock",
-	cursor_blink_rate = 650,
-
-	colors = colors,
+	cursor_blink_rate = 1000,
 
 	enable_scroll_bar = false,
 
@@ -35,10 +38,10 @@ return {
 
 	-- window
 	window_padding = {
-		left = 0,
-		right = 0,
-		top = 10,
-		bottom = 7.5,
+		left = 5,
+		right = 2,
+		top = 8,
+		bottom = 0,
 	},
 	adjust_window_size_when_changing_font_size = false,
 	window_close_confirmation = "NeverPrompt",
