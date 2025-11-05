@@ -1,0 +1,19 @@
+# Remember to install plugins (zathura-pdf-*)
+set window-title-basename "false"
+set selection-clipboard "clipboard"
+map <C-i> recolor
+set render-loading              true
+
+# Startup options
+set database sqlite
+set adjust-open width
+set recolor true
+
+include catppuccin-latte
+set font "iosevka 12"
+set page-padding 5
+
+map <F5> reload
+map b toggle_statusbar
+map ma mark_add
+map me mark_evaluate
