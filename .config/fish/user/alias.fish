@@ -52,3 +52,5 @@ alias :q='exit'
 
 # .dotfiles bare git repository
 alias config='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
+
+alias rss='nom'

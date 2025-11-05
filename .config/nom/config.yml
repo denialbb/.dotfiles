@@ -1,0 +1,52 @@
+feeds:
+  - url: https://dropbox.tech/feed
+    name: DropBox
+  - url: https://snyk.io/blog/feed
+    name: Snyk
+    tags:
+      - ai
+      - tech
+  - url: https://feeds.arstechnica.com/arstechnica/
+    name: Arstechnica
+    tags:
+      - tech
+  - url: http://rss.slashdot.org/Slashdot/slashdot
+    name: Slashdot
+    tags:
+      - tech
+  - url: http://news.mit.edu/rss/topic/artificial-intelligence2
+    name: MIT AI
+    tags:
+      - tech
+      - ai
+  - url: https://www.youtube.com/feeds/videos.xml?channel_id=UCcIXc5mJsHVYTZR1maL5l9w
+    name: YT
+    tags:
+      - tech
+  - url: https://openai.com/blog/rss.xml
+    name: OpenAI
+    tags:
+      - tech
+      - ai
+  - url: http://googleresearch.blogspot.com/atom.xml
+    name: Google Research
+    tags:
+      - tech
+  - url: http://nautil.us/rss/all
+    name: Nautilus
+    tags:
+      - science
+  - url: http://www.nature.com/nature/current_issue/rss
+    name: Nature
+    tags:
+      - science
+
+showread: false
+autoread: false
+refreshinterval: 5
+etueuththeme:
+  glamour: dark
+  titleColor: "62"
+  titleColorFg: "231"
+  selectedItemColor: "170"
+  filterColor: "#555555"
