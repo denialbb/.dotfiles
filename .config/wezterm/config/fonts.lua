@@ -4,7 +4,8 @@ local platform = require("utils.platform")
 -- local font_family = 'Maple Mono NF'
 -- local font_family = "JetBrainsMono Nerd Font"
 -- local font_family = 'CartographCF Nerd Font'
-local font_family = "FiraCode Nerd Font"
+-- local font_family = "FiraCode Nerd Font"
+local font_family = "Anonymice Nerd Font"
 
 local font_size = 12
 
