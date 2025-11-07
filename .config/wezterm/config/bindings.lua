@@ -53,10 +53,6 @@ local keys = {
    { key = 'Backspace',  mods = mod.SUPER,     action = act.SendString '\u{15}' },
    { key = 'Backspace',  mods = 'CTRL',        action = act.SendKey {key = 'w', mods = 'CTRL'} },
 
-   -- copy/paste --
-   { key = 'c',          mods = 'CTRL|SHIFT',  action = act.CopyTo('Clipboard') },
-   { key = 'v',          mods = 'CTRL|SHIFT',  action = act.PasteFrom('Clipboard') },
-
    -- tabs --
    -- tabs: spawn+close
    -- leave this to zellij
@@ -115,6 +111,19 @@ local keys = {
          window:maximize()
       end)
    },
+
+   -- -- copy--
+   -- { key = 'C', mods = 'SUPER', action = act.CopyTo('PrimarySelection') },
+   { key = 'c', mods = 'CTRL|SHIFT',  action = act.CopyTo('Clipboard') },
+   -- { key = 'C', mods = 'CTRL',  action = act.CopyTo('Clipboard') },
+   --
+   -- -- paste from the clipboard
+   { key = 'v', mods = 'CTRL|SHIFT',  action = act.PasteFrom('Clipboard') },
+   -- { key = 'V', mods = 'CTRL', action = act.PasteFrom 'Clipboard' },
+   --
+   -- -- paste from the primary selection
+   -- { key = 'V', mods = 'SUPER', action = act.PasteFrom 'PrimarySelection' },
+   -- { key = 'V', mods = 'CTRL', action = act.PasteFrom 'PrimarySelection' },
 
 }
 

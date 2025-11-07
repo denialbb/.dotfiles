@@ -9,9 +9,9 @@ return {
 	underline_thickness = "1.5pt",
 	-- theme
 	-- colors = colors, -- for loading the custom color scheme
-	-- color_scheme = "Catppuccin Mocha",
+	color_scheme = "Catppuccin Mocha",
 	-- color_scheme = "Material (Gogh)",
-	color_scheme = "MaterialOcean",
+	-- color_scheme = "MaterialOcean",
 
 	-- cursor
 	animation_fps = 120,
