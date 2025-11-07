@@ -34,3 +34,4 @@ vim.keymap.set(
   "<cmd>lua require('supermaven').chat()<CR>",
   { desc = "supermaven chat", noremap = true, silent = true }
 )
+vim.keymap.set("n", "K", "vim.lsp.buf.hover", { desc = "lsp hover" })

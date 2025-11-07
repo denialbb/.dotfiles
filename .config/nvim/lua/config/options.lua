@@ -11,6 +11,7 @@ opt.listchars = {
   trail = "~", -- Trailing spaces
 }
 opt.list = true
+opt.textwidth = 80
 
 -- vim.o.autochdir = true -- breaks harpoon
 o.tabstop = 4
@@ -20,6 +21,6 @@ o.termguicolors = true
 o.ignorecase = true
 o.infercase = true
 o.smartcase = true
-o.wrap = false
+o.wrap = true
 o.cursorline = false
 o.scrolloff = 6
