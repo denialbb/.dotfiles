@@ -35,3 +35,20 @@ vim.keymap.set(
   { desc = "supermaven chat", noremap = true, silent = true }
 )
 vim.keymap.set("n", "K", "vim.lsp.buf.hover", { desc = "lsp hover" })
+
+vim.keymap.set("v", "<C-r>", function()
+  vim.cmd("normal! y")
+  local selected = vim.fn.getreg('"')
+  if selected == "" then
+    return
+  end
+
+  local pattern = vim.fn.escape(selected, [[/\.]])
+  local replace = vim.fn.input("Replace '" .. selected .. "' with: ")
+  if replace == "" then
+    return
+  end
+
+  vim.cmd(".,$s/" .. pattern .. "/" .. vim.fn.escape(replace, [[/\]]) .. "/g")
+  vim.cmd("nohlsearch")
+end, { desc = "Replace all selected text" })
