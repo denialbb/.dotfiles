@@ -1,1 +1,0 @@
-/home/dnbias/.config/omarchy/current/theme/neovim.lua
