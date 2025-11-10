@@ -1,4 +1,17 @@
--- local colors = require("colors.custom")
+local function get_colorscheme()
+	local wezterm = require("wezterm")
+	local file = io.open(wezterm.config_dir .. "/colorscheme", "r")
+	local color_scheme
+
+	if file then
+		color_scheme = file:read("*a")
+		file:close()
+	else
+		color_scheme = "Tokyo Night Day"
+	end
+
+	return color_scheme
+end
 
 return {
 	max_fps = 120,
@@ -9,9 +22,10 @@ return {
 	underline_thickness = "1.5pt",
 	-- theme
 	-- colors = colors, -- for loading the custom color scheme
-	color_scheme = "Catppuccin Mocha",
+	-- color_scheme = "Catppuccin Mocha",
 	-- color_scheme = "Material (Gogh)",
 	-- color_scheme = "MaterialOcean",
+	color_scheme = get_colorscheme(),
 
 	-- cursor
 	animation_fps = 120,
