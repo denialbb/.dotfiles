@@ -16,6 +16,11 @@ set -x FZF_CTRL_F_OPTS "
     --info right --preview-window=up,hidden,20% 
     --bind 'ctrl-p:toggle-preview'
 "
+export FZF_DEFAULT_OPTS="
+    --height 100% --margin 20%,35%
+    --info right --preview-window=up,hidden,70% 
+    --bind 'ctrl-p:toggle-preview'
+"
 function fe
     fzf -m --preview='bat -p --color=always {}' --bind 'enter:become(nvim {+})'
 end
