@@ -7,7 +7,7 @@ local function get_colorscheme()
 		color_scheme = file:read("*a")
 		file:close()
 	else
-		color_scheme = "Tokyo Night Day"
+		color_scheme = "Dracula"
 	end
 
 	return color_scheme
