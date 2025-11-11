@@ -8,8 +8,6 @@ keybinds clear-defaults=true {
         }
     }
     normal {
-        bind "Alt j" { PageScrollDown; }
-        bind "Alt k" { PageScrollUp; }
         bind "Alt h" { // "normal" session manager
             LaunchOrFocusPlugin "zj-smart-sessions" {
                 floating true
@@ -180,9 +178,8 @@ keybinds clear-defaults=true {
         bind "Alt g" { SwitchToMode "locked"; }
         bind "Alt h" { MoveFocusOrTab "left"; }
         bind "Alt i" { MoveTab "left"; }
-        bind "Alt j" { MoveFocus "down"; }
-        bind "Alt k" { MoveFocus "up"; }
-        bind "Alt l" { MoveFocusOrTab "right"; }
+        bind "Alt j" { MoveFocusOrTab "right"; }
+        bind "Alt k" { MoveFocusOrTab "left"; }
         bind "Alt n" { NewPane; }
         bind "Alt o" { MoveTab "right"; }
         bind "Alt p" { TogglePaneInGroup; }
@@ -320,7 +317,8 @@ web_client {
 // 
 // theme "terafox"
 // theme "retro-wave"
-theme "onedark"
+// theme "onedark"
+theme "gruvbox-dark"
  
 // Choose the base input mode of zellij.
 // Default: normal
