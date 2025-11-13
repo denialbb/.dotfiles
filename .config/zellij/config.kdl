@@ -17,8 +17,8 @@ keybinds clear-defaults=true {
         bind "Alt s" { // sessionizer
             LaunchOrFocusPlugin "zj-smart-sessions" {
                 floating true
-                find_command "/home/dnbias/.local/bin/find_dirs"
-                base_path "/home/dnbias/Projects" // path prefix required for relative paths from
+                find_command "/home/denial/.local/bin/find_dirs"
+                base_path "/home/denial/Projects" // path prefix required for relative paths from
                                                   // the script output
             };
             SwitchToMode "Normal"
@@ -342,7 +342,7 @@ default_shell "fish"
 // The folder in which Zellij will look for layouts
 // (Requires restart)
 // 
-layout_dir "/home/dnbias/.config/zellij/layouts"
+layout_dir "/home/denial/.config/zellij/layouts"
  
 // The folder in which Zellij will look for themes
 // (Requires restart)
