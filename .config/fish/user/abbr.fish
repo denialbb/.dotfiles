@@ -34,3 +34,5 @@ abbr --add pkg "pacman -Q | fzf"
 abbr --add fnt "fc-list | fzf"
 abbr --add bt "upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep percentage | awk '{print $2}'"
 abbr --add srcfish "source ~/.config/fish/config.fish"
+
+abbr --add connectvpn sudo openvpn --config ~/.config/openvpn/us-free-5.protonvpn.udp.ovpn --auth-user-pass ~/.config/openvpn/pass.txt --daemon

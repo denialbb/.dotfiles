@@ -1,0 +1,2 @@
+paste the logo.png into the plymouth theme folder:
+"/usr/share/plymouth/themes/omarchy/logo.png"

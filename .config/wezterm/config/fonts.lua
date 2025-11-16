@@ -5,11 +5,14 @@ local platform = require("utils.platform")
 -- local font_family = "JetBrainsMono Nerd Font"
 -- local font_family = 'CartographCF Nerd Font'
 -- local font_family = "FiraCode Nerd Font"
--- local font_family = "Anonymice Nerd Font"
+local font_family = "Anonymice Pro Nerd Font"
 -- local font_family = "MonaspiceNe Nerd Font"
-local font_family = "Mononoki Nerd Font"
+-- local font_family = "Mononoki Nerd Font"
+-- local font_family = "MonaspiceKr Nerd Font"
+-- local font_family = "Terminus"
+-- local font_family = "Terminus (TTF)"
 
-local font_size = 14
+local font_size = 15
 
 return {
 	font = wezterm.font({
