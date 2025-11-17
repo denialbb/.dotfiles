@@ -1,17 +1,21 @@
 # Dynamic theme colors
 # config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
-initial-command = /usr/bin/fish
+command = /usr/bin/fish
 theme = "Gruvbox Dark"
 
 # Font
-font-family = "Mononoki Nerd Font"
+# font-family = "Mononoki Nerd Font"
+font-family = ""
+font-family = "Anonymice Nerd Font"
+font-family = "GeistMono NFM"
 font-size = 14
+font-feature = -liga
 
 # Window
 window-decoration = true
 window-theme = ghostty
-window-padding-x = 4
-window-padding-y = 0
+window-padding-x = 8
+window-padding-y = 8
 confirm-close-surface=false
 resize-overlay = never
 gtk-toolbar-style = flat
@@ -25,6 +29,12 @@ shell-integration-features = no-cursor
 mouse-hide-while-typing = true
 
 # Keyboard bindings
+keybind = cmd+t=unbind
+keybind = cmd+n=unbind
+keybind = cmd+c=unbind
+keybind = cmd+w=unbind
+keybind = cmd+opt+left=unbind
+keybind = cmd+opt+right=unbind
 keybind = shift+insert=paste_from_clipboard
 keybind = control+insert=copy_to_clipboard
 keybind = control+k=scroll_page_up
