@@ -4,4 +4,4 @@
 # To put it into use, remove .sample from the name.
 
 # Example: Show the name of the theme that was just set.
-hyprpaper
+hyprpaper &
