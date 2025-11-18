@@ -12,14 +12,15 @@ export PATH="$PATH:~/.config/emacs/bin"
 export PATH="$PATH:~/.local/bin"
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 export BROWSER="librewolf"
-
 export ZELLIJ_CONFIG_DIR=$HOME/.config/zellij
 
 # Check if our Terminal emulator is Ghostty
-if [ "$TERM" = xterm-ghostty ]
-    # Launch zellij
-    eval (zellij setup --generate-auto-start fish | string collect)
-end
+# if [ "$TERM" = xterm-ghostty ]
+#     # Launch zellij
+#     eval (zellij setup --generate-auto-start fish | string collect)
+# end
+
+eval (zellij setup --generate-auto-start fish | string collect)
 
 for f in ~/.config/fish/user/*.fish
     source $f
