@@ -1,3 +1,4 @@
+# Thank you Bread for the config!
 from pathlib import Path
 import sys
 
@@ -10,6 +11,8 @@ import omarchy
 # pylint: disable=C0111
 c = c  # noqa: F821 pylint: disable=E0602,C0103
 config = config  # noqa: F821 pylint: disable=E0602,C0103
+startpage = "file:///home/dnbias/.config/qutebrowser/startpage/index.html"
+
 # pylint settings included to disable linting errors
 
 # import subprocess
@@ -29,28 +32,27 @@ config = config  # noqa: F821 pylint: disable=E0602,C0103
 # xresources = read_xresources("*")
 theme = omarchy.read_omarchy_theme("colors")
 
-c.colors.statusbar.normal.bg = "#00000000"
-c.colors.statusbar.command.bg = "#00000000"
-# c.colors.statusbar.normal.bg = xresources["*.background"]
-# c.colors.statusbar.command.bg = xresources["*.background"]
+c.colors.statusbar.normal.bg = theme["primary.background"]
+c.colors.statusbar.command.bg = theme["primary.background"]
 c.colors.statusbar.command.fg = theme["primary.foreground"]
-c.colors.statusbar.normal.fg = theme["normal.green"]
+c.colors.statusbar.normal.fg = theme["primary.foreground"]
 c.colors.statusbar.passthrough.fg = theme["normal.green"]
 c.colors.statusbar.url.fg = theme["normal.green"]
 c.colors.statusbar.url.success.https.fg = theme["normal.green"]
 c.colors.statusbar.url.hover.fg = theme["bright.green"]
 c.statusbar.show = "always"
-c.colors.tabs.even.bg = "#00000000"  # transparent tabs!!
-c.colors.tabs.odd.bg = "#00000000"
-c.colors.tabs.bar.bg = "#00000000"
-# c.colors.tabs.even.bg = theme["*.background"]
-# c.colors.tabs.odd.bg = theme["*.background"]
+c.colors.tabs.even.bg = "#000000"  # transparent tabs!!
+c.colors.tabs.odd.bg = "#000000"
+c.colors.tabs.bar.bg = "#000000"
+# c.colors.tabs.even.bg = theme["primary.background"]
+# c.colors.tabs.odd.bg = theme["primary.background"]
+# c.colors.tabs.bar.bg = theme["primary.background"]
 c.colors.tabs.even.fg = theme["normal.blue"]
 c.colors.tabs.odd.fg = theme["normal.blue"]
-c.colors.tabs.selected.even.bg = theme["primary.foreground"]
-c.colors.tabs.selected.odd.bg = theme["primary.foreground"]
-c.colors.tabs.selected.even.fg = theme["primary.background"]
-c.colors.tabs.selected.odd.fg = theme["primary.background"]
+c.colors.tabs.selected.even.bg = theme["primary.background"]
+c.colors.tabs.selected.odd.bg = theme["primary.background"]
+c.colors.tabs.selected.even.fg = theme["normal.green"]
+c.colors.tabs.selected.odd.fg = theme["normal.green"]
 c.colors.hints.bg = theme["primary.background"]
 c.colors.hints.fg = theme["primary.foreground"]
 c.tabs.show = "multiple"
@@ -85,8 +87,13 @@ c.colors.tooltip.bg = theme["primary.background"]
 c.colors.webpage.bg = theme["primary.background"]
 c.hints.border = theme["primary.foreground"]
 
-# c.url.start_pages = ""
-# c.url.default_page = ""
+c.colors.contextmenu.menu.bg = theme["primary.background"]
+c.colors.contextmenu.menu.fg = theme["primary.foreground"]
+c.colors.keyhint.bg = theme["primary.background"]
+c.colors.keyhint.fg = theme["primary.foreground"]
+
+c.url.start_pages = startpage
+c.url.default_page = startpage
 
 c.tabs.title.format = "{audio}{current_title}"
 c.fonts.web.size.default = 20
@@ -110,7 +117,8 @@ c.completion.open_categories = [
 
 config.load_autoconfig()  # load settings done via the gui
 
-c.auto_save.session = True  # save tabs on quit/restart
+c.auto_save.session = False  # save tabs on quit/restart
+c.spellcheck.languages = ["en-US", "it-IT"]
 
 # keybinding changes
 config.bind("=", "cmd-set-text -s :open")
@@ -125,7 +133,7 @@ config.bind("pp", "open -- {clipboard}")
 config.bind("pt", "open -t -- {clipboard}")
 config.bind("qm", "macro-record")
 config.bind("<ctrl-y>", "spawn --userscript ytdl.sh")
-config.bind("tT", "config-cycle tabs.position top left")
+config.bind("tT", "config-cycle tabs.position bottom left")
 config.bind("gJ", "tab-move +")
 config.bind("gK", "tab-move -")
 config.bind("gm", "tab-move")
@@ -134,18 +142,25 @@ config.bind("gm", "tab-move")
 c.colors.webpage.darkmode.enabled = True
 c.colors.webpage.darkmode.algorithm = "lightness-cielab"
 c.colors.webpage.darkmode.policy.images = "never"
+c.colors.webpage.bg = theme["primary.background"]
 config.set("colors.webpage.darkmode.enabled", False, "file://*")
 
 # styles, cosmetics
-# c.content.user_stylesheets = ["~/.config/qutebrowser/styles/youtube-tweaks.css"]
+c.content.user_stylesheets = [
+    "~/.config/qutebrowser/styles/youtube-tweaks.css",
+    "~/.config/qutebrowser/styles/reddit-tweaks.css",
+]
 c.tabs.padding = {"top": 5, "bottom": 5, "left": 9, "right": 9}
 c.tabs.indicator.width = 0  # no tab indicators
 # c.window.transparent = True # apparently not needed
 c.tabs.width = "7%"
+c.tabs.position = "bottom"
+c.tabs.title.alignment = "center"
+c.scrolling.smooth = True
 
 # fonts
-c.fonts.default_family = []
-c.fonts.default_size = "13pt"
+c.fonts.default_family = ["agave", "Anonymice Nerd Font", "Geist Mono NFM"]
+c.fonts.default_size = "12pt"
 c.fonts.web.family.fixed = "monospace"
 c.fonts.web.family.sans_serif = "monospace"
 c.fonts.web.family.serif = "monospace"
@@ -170,22 +185,22 @@ config.set("content.cookies.store", True)
 # If you want additional blocklists, you can get the python-adblock package, or you can uncomment the ublock lists here.
 c.content.blocking.enabled = True
 # c.content.blocking.method = 'adblock' # uncomment this if you install python-adblock
-c.content.blocking.adblock.lists = [
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/legacy.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2020.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2021.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2022.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2023.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2024.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badware.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/privacy.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badlists.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances-cookies.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances-others.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badlists.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/quick-fixes.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/resource-abuse.txt",
-    "https://github.com/uBlockOrigin/uAssets/raw/master/filters/unbreak.txt",
-]
+# c.content.blocking.adblock.lists = [
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/legacy.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2020.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2021.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2022.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2023.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/filters-2024.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badware.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/privacy.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badlists.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances-cookies.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/annoyances-others.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/badlists.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/quick-fixes.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/resource-abuse.txt",
+#     "https://github.com/uBlockOrigin/uAssets/raw/master/filters/unbreak.txt",
+# ]

@@ -37,6 +37,8 @@ set -x RIPGREP_CONFIG_PATH "$XDG_CONFIG_HOME/ripgrep/.ripgreprc"
 # set -x FZF_DEFAULT_COMMAND "fd . --hidden --exclude \".git\""
 # set -x FZF_DEFAULT_OPTS "--reverse --margin 1,2 --prompt \"fzf: \" --color=16,current-bg:0,border:0 --preview-window=\"down,50%,border-sharp,wrap\" --multi"
 
+set -x MPD_HOST "$XDG_RUNTIME_DIR/mpd/socket"
+
 # Wayland
 set -x ELECTRON_OZONE_PLATFORM_HINT auto
 set -x SWWW_TRANSITION none
