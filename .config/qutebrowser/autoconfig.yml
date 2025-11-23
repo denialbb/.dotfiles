@@ -13,6 +13,27 @@ settings:
       w: session-save
       wq: quit --save
       wqa: quit --save
+  bindings.commands:
+    global:
+      normal:
+        <Ctrl+n>: move-to-next-line
+        <Ctrl+p>: move-to-prev-line
+        <Ctrl+y>: spawn --userscript ytdl.sh
+        '=': cmd-set-text -s :open
+        T: hint links tab
+        cc: hint images spawn sh -c "cliphist link {hint-url}"
+        cs: cmd-set-text -s :config-source
+        gJ: tab-move +
+        gK: tab-move -
+        gm: tab-move
+        h: history
+        pP: open -- {primary}
+        pp: open -- {clipboard}
+        pt: open -t -- {clipboard}
+        qm: macro-record
+        sH: config-cycle statusbar.show always never
+        tH: config-cycle tabs.show multiple never
+        tT: config-cycle tabs.position bottom left
   content.headers.user_agent:
     https://accounts.google.com/*: Mozilla/5.0 ({os_info}; rv:131.0) Gecko/20100101
       Firefox/131.0
@@ -22,8 +43,14 @@ settings:
     https://www.youtube.com: true
   content.register_protocol_handler:
     https://mail.google.com?extsrc=mailto&url=%25s: true
+  fonts.debug_console:
+    global: default_size default_family
   fonts.default_family:
-    global: Anonymice Nerd Font
+    global: Iosevka Custom
+  fonts.default_size:
+    global: 12pt
+  fonts.downloads:
+    global: default_size default_family
   scrolling.smooth:
     global: true
   statusbar.position:

@@ -1,4 +1,4 @@
-# Thank you Bread for the config!
+# Thank you Bread for Penguins for the config!
 from pathlib import Path
 import sys
 
@@ -159,7 +159,7 @@ c.tabs.title.alignment = "center"
 c.scrolling.smooth = True
 
 # fonts
-c.fonts.default_family = ["agave", "Anonymice Nerd Font", "Geist Mono NFM"]
+# c.fonts.default_family = ["agave", "Anonymice Nerd Font", "Geist Mono NFM"]
 c.fonts.default_size = "12pt"
 c.fonts.web.family.fixed = "monospace"
 c.fonts.web.family.sans_serif = "monospace"

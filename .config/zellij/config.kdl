@@ -8,6 +8,8 @@ keybinds clear-defaults=true {
         }
     }
     normal {
+        bind "Ctrl j" { PageScrollDown; }
+        bind "Ctrl k" { PageScrollUp; }
         bind "Alt h" { // "normal" session manager
             LaunchOrFocusPlugin "zj-smart-sessions" {
                 floating true

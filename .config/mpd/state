@@ -1,0 +1,30 @@
+sw_volume: 100
+audio_device_state:1:PipeWire Sound Server
+state: pause
+current: 1
+time: 21.557000000000002
+random: 0
+repeat: 0
+single: 0
+consume: 0
+crossfade: 0
+mixrampdb: 0
+mixrampdelay: -1
+lastloadedplaylist: 
+playlist_begin
+0:hdd/In This Moment/In This Moment - Mother/01 - The Beginning (Interlude).mp3
+1:hdd/In This Moment/In This Moment - Mother/02 - Fly Like An Eagle.mp3
+2:hdd/In This Moment/In This Moment - Mother/03 - The Red Crusade (Interlude).mp3
+3:hdd/In This Moment/In This Moment - Mother/04 - The In-Between.mp3
+4:hdd/Nu Metal Heaven/46 - In This Moment - The In-Between.mp3
+5:hdd/In This Moment/In This Moment - Mother/05 - Legacy.mp3
+6:hdd/In This Moment/In This Moment - Mother/06 - We Will Rock You (feat. Maria Brink, Lzzy Hale and Taylor Momsen).mp3
+7:hdd/In This Moment/In This Moment - Mother/07 - Mother.mp3
+8:hdd/In This Moment/In This Moment - Mother/08 - As Above, So Below.mp3
+9:hdd/In This Moment/In This Moment - Mother/09 - Born In Flames.mp3
+10:hdd/In This Moment/In This Moment - Mother/10 - God Is She.mp3
+11:hdd/In This Moment/In This Moment - Mother/11 - Holy Man.mp3
+12:hdd/In This Moment/In This Moment - Mother/12 - Hunting Grounds (feat. Joe Cotela of Ded).mp3
+13:hdd/In This Moment/In This Moment - Mother/13 - Lay Me Down.mp3
+14:hdd/In This Moment/In This Moment - Mother/14 - Into Dust.mp3
+playlist_end
