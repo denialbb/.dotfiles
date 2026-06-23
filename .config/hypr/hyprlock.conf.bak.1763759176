@@ -1,14 +1,10 @@
 source = ~/.config/omarchy/current/theme/hyprlock.conf
- 
-general {
-    ignore_empty_input = true
-}
 
 background {
     monitor = DP-1
     color = $color
-    path = ~/Pictures/wallpapers/anime/retro-tinkerer-catppuccin.png
-    blur_passes = 0
+    path = ~/.config/omarchy/current/background
+    blur_passes = 3
 }
 
 animations {
@@ -16,8 +12,8 @@ animations {
 }
 
 input-field {
-    monitor = DP-1
-    size = 400, 60
+    monitor =
+    size = 650, 100
     position = 0, 0
     halign = center
     valign = center
@@ -29,12 +25,12 @@ input-field {
     font_family = RobotoMono Nerd Font
     font_color = $font_color
 
-    placeholder_text = Enter Password
+    placeholder_text = Enter Password 󰈷
     check_color = $check_color
     fail_text = <i>$FAIL ($ATTEMPTS)</i>
 
-    rounding = 20
-    shadow_passes = 2
+    rounding = 0
+    shadow_passes = 0
     fade_on_empty = false
 }
 
