@@ -25,3 +25,7 @@ eval (zellij setup --generate-auto-start fish | string collect)
 for f in ~/.config/fish/user/*.fish
     source $f
 end
+
+
+# Added by Antigravity CLI installer
+set -gx PATH "/home/denial/.local/bin" $PATH
