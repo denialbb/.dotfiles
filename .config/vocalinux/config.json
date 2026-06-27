@@ -1,0 +1,53 @@
+{
+    "speech_recognition": {
+        "engine": "vosk",
+        "language": "en-us",
+        "model_size": "small",
+        "vosk_model_size": "small",
+        "whisper_model_size": "tiny",
+        "whisper_cpp_model_size": "tiny",
+        "vad_sensitivity": 3,
+        "silence_timeout": 2.0,
+        "stop_sound_guard_ms": 200,
+        "voice_commands_enabled": null,
+        "remote_api_url": "",
+        "remote_api_key": "",
+        "remote_api_endpoint": "/inference"
+    },
+    "audio": {
+        "device_index": 4,
+        "device_name": "sysdefault"
+    },
+    "sound_effects": {
+        "enabled": true
+    },
+    "shortcuts": {
+        "toggle_recognition": "right_alt+right_alt",
+        "mode": "push_to_talk"
+    },
+    "ui": {
+        "start_minimized": true,
+        "show_notifications": true
+    },
+    "general": {
+        "autostart": true,
+        "first_run": false
+    },
+    "text_injection": {
+        "copy_to_clipboard": false
+    },
+    "advanced": {
+        "power_user_mode": false,
+        "debug_logging": false,
+        "wayland_mode": true,
+        "whispercpp_no_timestamps": true,
+        "whispercpp_no_context": true,
+        "whispercpp_initial_prompt": "",
+        "whispercpp_temperature": 0.0,
+        "whispercpp_temperature_inc": -1.0,
+        "whispercpp_entropy_thold": 2.4,
+        "whispercpp_logprob_thold": -1.0,
+        "whispercpp_no_speech_thold": 0.6,
+        "whispercpp_n_threads": 0
+    }
+}

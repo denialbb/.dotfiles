@@ -1,0 +1,131 @@
+workspace = name:1, monitor:DP-1
+
+windowrule {
+  name = windowrule-1
+  tag = +editor
+  match:class = (org.wezfurlong.wezterm|kitty|com.mitchellh.ghostty|obsidian)
+}
+
+windowrule {
+  name = windowrule-2
+  tag = +browser
+  opacity = 0.8 override 0.8 override 0.8
+  no_blur = on
+  match:class = (chrome|zen|firefox|org.qutebrowser.qutebrowser)
+}
+
+windowrule {
+  name = windowrule-3
+  tag = +reader
+  match:class = (org.pwmt.zathura)
+}
+
+
+windowrule {
+  name = windowrule-4
+  opacity = 0.8 override 0.8 0.8
+  no_blur = on
+  workspace = 1
+  match:tag = editor
+}
+
+windowrule {
+  name = windowrule-5
+  opacity = 1 override 1 override 1
+  match:class = ^(com.mitchellh.ghostty)
+}
+
+windowrule {
+  name = windowrule-6
+  workspace = 3
+  match:class = (obsidian)
+}
+
+
+windowrule {
+  name = windowrule-7
+  workspace = 2
+  opacity = 0.8 override 0.8 override 0.8
+  fullscreen = on
+  match:tag = browser
+}
+
+
+windowrule {
+  name = windowrule-8
+  float = on
+  match:class = ^(zen)
+  match:title = ^(Save Image)
+}
+
+windowrule {
+  name = windowrule-9
+  float = on
+  match:class = ^(feh)
+}
+
+
+windowrule {
+  name = windowrule-10
+  opacity = 0.9 0.9 0.9
+  float = on
+  match:tag = reader
+}
+
+
+# TODO
+windowrule {
+  name = windowrule-11
+  opacity = 1.0 override 1.0 override
+  workspace = 5
+  match:initial_title = (youtube.com_/)
+}
+
+
+# Godot
+windowrule {
+  name = windowrule-12
+  opacity = 1.0 override 1.0 override
+  no_blur = on
+  no_anim = on
+  match:initial_title = ^(Godot)$
+}
+
+# Force Debugger/Output panel to workspace 1 and keep it floating
+windowrule {
+  name = windowrule-13
+  workspace = 1
+  match:title = ^(.*Debug.*)
+}
+
+# windowrulev2 = float, title:^(.*[Dd]ebug.*|.*[Oo]utput.*)$
+# windowrulev2 = size 1200 600, title:^(.*[Dd]ebug.*|.*[Oo]utput.*)$
+# windowrulev2 = center, title:^(.*[Dd]ebug.*|.*[Oo]utput.*)$
+
+# Raylib
+windowrule {
+  name = windowrule-14
+  opacity = 1.0 override 1.0 override
+  no_blur = on
+  no_anim = on
+  match:initial_title = ^(Handmade)$
+}
+
+windowrule {
+  name = windowrule-15
+  workspace = 2
+  center = on
+  fullscreen = on
+  match:title = ^(Handmade)$
+}
+
+
+# Playscii
+windowrule {
+  name = windowrule-16
+  fullscreen = on
+  opacity = 1.0 override 1.0 override
+  match:class = ^(python3.14)$
+  match:title = ^(Playscii.*)$
+}
+

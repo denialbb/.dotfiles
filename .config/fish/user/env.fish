@@ -36,6 +36,8 @@ set -x RIPGREP_CONFIG_PATH "$XDG_CONFIG_HOME/ripgrep/.ripgreprc"
 # Software
 # set -x FZF_DEFAULT_COMMAND "fd . --hidden --exclude \".git\""
 # set -x FZF_DEFAULT_OPTS "--reverse --margin 1,2 --prompt \"fzf: \" --color=16,current-bg:0,border:0 --preview-window=\"down,50%,border-sharp,wrap\" --multi"
+set -g FZF_CTRL_T_OPTS "--height=5 --min-height=5 --layout=reverse"
+set -g FZF_CTRL_R_OPTS "--height=5 --min-height=5 --with-nth=3.. --freeze-left=0 --layout=reverse"
 
 set -x TASKRC "$XDG_CONFIG_HOME/task/taskrc"
 set -x MPD_HOST "$XDG_RUNTIME_DIR/mpd/socket"
@@ -48,3 +50,4 @@ set -x SDL_VIDEODRIVER wayland
 # PATH entries
 fish_add_path "$HOME/.local/bin"
 fish_add_path "$CARGO_HOME/bin"
+fish_add_path "/home/denial/.local/share/mise/installs/node/25.1.0/bin"

@@ -4,7 +4,7 @@ command = /usr/bin/fish
 theme = "Gruvbox Dark"
 background = #222222
 background-opacity = 0.7
-font-family = "Iosevka Custom"
+font-family = "Maple Mono NL"
 font-size = 14
 font-feature = -liga
 
@@ -50,3 +50,6 @@ background-blur = false
 
 # Slowdown mouse scrolling
 mouse-scroll-multiplier = 0.95
+
+# Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
+async-backend = epoll

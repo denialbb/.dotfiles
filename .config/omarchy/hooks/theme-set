@@ -3,5 +3,25 @@
 # This hook is called with the snake-cased name of the theme that has just been set.
 # To put it into use, remove .sample from the name.
 
-# Example: Show the name of the theme that was just set.
-killall swaybg
+# Automatically adapt the background to the newly active theme colors
+omarchy-adapt-background
+
+# Copy current Neovim theme config to Neovim plugins directory to trigger hot-reload
+if [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
+    cp "$HOME/.config/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+fi
+
+# Update the pi agent theme to match the active Omarchy theme
+if [ -f "$HOME/.config/omarchy/hooks/update_pi_theme.py" ]; then
+    python3 "$HOME/.config/omarchy/hooks/update_pi_theme.py"
+fi
+
+# Update the Obsidian theme to match the active Omarchy theme
+if [ -f "$HOME/.config/omarchy/hooks/update_obsidian_theme.py" ]; then
+    python3 "$HOME/.config/omarchy/hooks/update_obsidian_theme.py"
+fi
+
+
+
+
+

@@ -35,7 +35,6 @@ alias gl='git log --oneline '
 alias gll='git log '
 alias rr='rm -rf'
 
-# sudo last command
 alias uptime='uptime --pretty'
 alias cat='bat --style=grid'
 alias bat='bat --style=grid'
@@ -54,3 +53,5 @@ alias :q='exit'
 alias config='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
 
 alias rss='nom'
+
+alias tmux "tmux new -A -s main"

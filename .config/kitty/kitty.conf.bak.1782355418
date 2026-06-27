@@ -1,0 +1,40 @@
+include ~/.config/omarchy/current/theme/kitty.conf
+# include ~/.config/kitty/launch.conf
+
+# Shell
+shell fish
+
+# Font
+font_family Maple Mono NL
+bold_italic_font auto
+font_size        12.0
+
+# Window
+window_padding_width 12
+window_padding_height 12
+hide_window_decorations yes
+show_window_resize_notification no
+confirm_os_window_close 0
+
+# Keybindings
+map ctrl+insert copy_to_clipboard
+map shift+insert paste_from_clipboard
+map ctrl+h no_op
+map ctrl+shift+h no_op
+
+# Allow remote access
+single_instance yes
+allow_remote_control yes
+
+# Aesthetics
+cursor_shape block
+enable_audio_bell no
+
+# Minimal Tab bar styling
+# tab_bar_edge            bottom
+# tab_bar_style           custom
+# tab_bar_min_tabs        1
+# tab_bar_margin_height   8.0 0.0
+# active_tab_foreground   #e0d8d0
+# inactive_tab_foreground #4d6b6b
+#
