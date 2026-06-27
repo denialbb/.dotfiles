@@ -50,4 +50,4 @@ set -x SDL_VIDEODRIVER wayland
 # PATH entries
 fish_add_path "$HOME/.local/bin"
 fish_add_path "$CARGO_HOME/bin"
-fish_add_path "/home/denial/.local/share/mise/installs/node/25.1.0/bin"
+fish_add_path "$HOME/.local/share/mise/installs/node/25.1.0/bin"
