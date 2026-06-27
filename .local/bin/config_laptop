@@ -1,0 +1,2 @@
+#!/bin/bash
+cp -r ~/.config/bkup/hypr/* ~/.config/hypr/
