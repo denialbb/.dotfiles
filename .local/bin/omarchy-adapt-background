@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""
+omarchy-adapt-background
+
+Adapt a background image's color scheme to match the active Omarchy theme colors.
+Uses ImageMagick's -clut (Color Lookup Table) to map image values to the theme's palette.
+"""
+
+import os
+import sys
+import argparse
+import subprocess
+import tomllib
+from pathlib import Path
+
+# Paths
+HOME = Path.home()
+OMARCHY_DIR = HOME / ".config/omarchy"
+CURRENT_BG_LINK = OMARCHY_DIR / "current/background"
+ORIGINAL_BG_PATH_FILE = OMARCHY_DIR / "original-background.path"
+COLORS_TOML = OMARCHY_DIR / "current/theme/colors.toml"
+CUSTOM_BG_DIR = OMARCHY_DIR / "custom-backgrounds"
+
+def get_theme_name():
+    theme_name_file = OMARCHY_DIR / "current/theme.name"
+    if theme_name_file.exists():
+        return theme_name_file.read_text().strip().lower()
+    return "default"
+
+def get_theme_colors(colors_file):
+    if not colors_file.exists():
+        print(f"Warning: Colors file '{colors_file}' not found. Using fallbacks.", file=sys.stderr)
+        return {
+            "background": "#121212",
+            "accent": "#e68e0d",
+            "foreground": "#bebebe"
+        }
+    
+    with open(colors_file, "rb") as f:
+        try:
+            data = tomllib.load(f)
+            bg = data.get("background", "#121212")
+            accent = data.get("accent", data.get("color4", "#e68e0d"))
+            fg = data.get("foreground", data.get("color7", "#bebebe"))
+            return {"background": bg, "accent": accent, "foreground": fg}
+        except Exception as e:
+            print(f"Error parsing colors TOML: {e}", file=sys.stderr)
+            return {
+                "background": "#121212",
+                "accent": "#e68e0d",
+                "foreground": "#bebebe"
+            }
+
+def get_original_background():
+    if ORIGINAL_BG_PATH_FILE.exists():
+        orig_path = Path(ORIGINAL_BG_PATH_FILE.read_text().strip())
+        if orig_path.exists():
+            return orig_path
+
+    if CURRENT_BG_LINK.is_symlink():
+        target = CURRENT_BG_LINK.resolve()
+        if not str(target).startswith(str(CUSTOM_BG_DIR)):
+            ORIGINAL_BG_PATH_FILE.parent.mkdir(parents=True, exist_ok=True)
+            ORIGINAL_BG_PATH_FILE.write_text(str(target))
+            return target
+
+    # Default fallback
+    fallback = HOME / "Pictures/monster-hunter-girl.png"
+    if fallback.exists():
+        ORIGINAL_BG_PATH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ORIGINAL_BG_PATH_FILE.write_text(str(fallback))
+        return fallback
+
+    return None
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Adapt a background image to the active Omarchy theme colors."
+    )
+    parser.add_argument(
+        "input_image",
+        nargs="?",
+        help="Path to the source background image. If omitted, auto-detects current/original background."
+    )
+    parser.add_argument(
+        "-b", "--blend",
+        type=float,
+        default=0.7,
+        help="Blend ratio (0.0 to 1.0) of the theme-adapted color map. 1.0 is full duotone. Default: 0.7"
+    )
+    parser.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help="Force regeneration of the background even if it already exists."
+    )
+    args = parser.parse_args()
+
+    # Find the input image
+    if args.input_image:
+        input_path = Path(args.input_image).resolve()
+        if not input_path.exists():
+            print(f"Error: Input image '{input_path}' does not exist.", file=sys.stderr)
+            sys.exit(1)
+        # Save as the new original background since it was explicitly passed
+        ORIGINAL_BG_PATH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ORIGINAL_BG_PATH_FILE.write_text(str(input_path))
+    else:
+        input_path = get_original_background()
+        if not input_path:
+            print("Error: Could not determine original background image. Please specify one.", file=sys.stderr)
+            sys.exit(1)
+
+    # Get active theme info
+    theme_name = get_theme_name()
+    colors = get_theme_colors(COLORS_TOML)
+
+    # Output path
+    CUSTOM_BG_DIR.mkdir(parents=True, exist_ok=True)
+    suffix = input_path.suffix if input_path.suffix else ".png"
+    output_path = CUSTOM_BG_DIR / f"{input_path.stem}-{theme_name}{suffix}"
+
+    # Build the image using ImageMagick
+    if not output_path.exists() or args.force or args.input_image:
+        print(f"Generating adapted background for theme '{theme_name}'...")
+        bg_col = colors["background"]
+        accent_col = colors["accent"]
+        fg_col = colors["foreground"]
+
+        # Ensure values are mapped cleanly
+        gradient_def = f"gradient:{bg_col}-{accent_col}-{fg_col}"
+        
+        # Build command based on blend factor
+        if args.blend >= 1.0:
+            cmd = [
+                "magick", str(input_path),
+                "-colorspace", "gray",
+                "-size", "256x1!", gradient_def,
+                "-clut", str(output_path)
+            ]
+        elif args.blend <= 0.0:
+            # Just copy the original file
+            import shutil
+            shutil.copy2(input_path, output_path)
+            cmd = []
+        else:
+            blend_pct = int(args.blend * 100)
+            orig_pct = 100 - blend_pct
+            cmd = [
+                "magick", str(input_path),
+                "(", "+clone", "-colorspace", "gray", "-size", "256x1!", gradient_def, "-clut", ")",
+                "-define", f"compose:args={blend_pct},{orig_pct}",
+                "-compose", "blend",
+                "-composite", str(output_path)
+            ]
+
+
+        if cmd:
+            try:
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running ImageMagick: {e}", file=sys.stderr)
+                sys.exit(1)
+    else:
+        print(f"Using existing cached adapted background for theme '{theme_name}'.")
+
+    # Set new background symlink
+    CURRENT_BG_LINK.unlink(missing_ok=True)
+    CURRENT_BG_LINK.symlink_to(output_path)
+    print(f"Set background symlink to: {output_path}")
+
+    # Relaunch swaybg
+    print("Reloading background renderer...")
+    try:
+        subprocess.run(["systemctl", "--user", "stop", "custom-swaybg"], capture_output=True)
+    except Exception:
+        pass
+    
+    subprocess.run(["pkill", "-x", "swaybg"])
+
+    uwsm_active = False
+    try:
+        res = subprocess.run(["uwsm", "check", "is-active"], capture_output=True)
+        if res.returncode == 0:
+            uwsm_active = True
+    except Exception:
+        pass
+
+    if uwsm_active:
+        subprocess.Popen(
+            ["uwsm-app", "--", "swaybg", "-i", str(CURRENT_BG_LINK), "-m", "fill"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+    else:
+        subprocess.Popen(
+            ["swaybg", "-i", str(CURRENT_BG_LINK), "-m", "fill"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+    print("Background updated successfully.")
+
+if __name__ == "__main__":
+    main()
