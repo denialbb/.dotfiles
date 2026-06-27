@@ -1,0 +1,17 @@
+Agentic
+Backbuffer
+GPT
+HPC
+MCP
+Ondrej
+PRD
+Pocock
+Pocock’s
+Zechner
+agentic
+backbuffer
+goland
+msg
+repo
+rollout
+checksum_v1 = 41e93907251232d08ed23cc94709d2fe
