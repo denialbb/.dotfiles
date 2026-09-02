@@ -20,7 +20,7 @@ if status is-interactive
     end
 
     # Initialize cargo
-    source "$HOME/.local/share/cargo/env.fish"
+    test -f "$HOME/.local/share/cargo/env.fish"; and source "$HOME/.local/share/cargo/env.fish"
 
     # Export important environment variables
     export PATH="$PATH:~/.config/emacs/bin:~/.local/bin:$HOME/.local/bin"
@@ -57,4 +57,4 @@ end
 
 
 # Added by Antigravity CLI installer
-set -gx PATH "/home/dnbias/.local/bin" $PATH
+set -gx PATH "$HOME/.local/bin" $PATH
