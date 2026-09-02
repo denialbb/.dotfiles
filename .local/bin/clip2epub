@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""
+clip2epub / nom2kepub - Fast CLI helper and clipboard hook.
+Grabs URLs or arXiv IDs from CLI arguments or system clipboard (via wl-paste / xclip)
+and converts them into e-ink EPUB/KEPUB in ~/Articles/Inbox via article2epub.
+"""
+
+import os
+import sys
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+ARTICLE2EPUB = Path.home() / ".local" / "bin" / "article2epub"
+
+
+def get_clipboard_text() -> str:
+    # Try wl-paste (Wayland)
+    if shutil.which("wl-paste"):
+        try:
+            res = subprocess.run(["wl-paste", "--no-newline"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+
+    # Try xclip (X11)
+    if shutil.which("xclip"):
+        try:
+            res = subprocess.run(["xclip", "-selection", "clipboard", "-o"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+
+    # Try xsel (X11)
+    if shutil.which("xsel"):
+        try:
+            res = subprocess.run(["xsel", "--clipboard", "--output"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+
+    return ""
+
+
+def extract_targets(text: str) -> list[str]:
+    lines = text.strip().splitlines()
+    targets = []
+    
+    # 1. Check line-by-line first (e.g. copied single URL or list of URLs)
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # If line is a URL or arXiv ID
+        if re.match(r"^https?:\/\/[^\s]+$", line):
+            targets.append(line)
+        elif re.match(r"^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$", line):
+            targets.append(line)
+            
+    if targets:
+        return targets
+
+    # 2. Extract URLs from inside free text
+    url_matches = re.findall(r"https?:\/\/[^\s<>\"'\)\],]+", text)
+    if url_matches:
+        return list(dict.fromkeys(url_matches))
+
+    # 3. Check for arXiv identifiers in free text
+    arxiv_matches = re.findall(r"\b[0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?\b", text)
+    if arxiv_matches:
+        return list(dict.fromkeys(arxiv_matches))
+
+    # 4. If single line looks like a domain/path without http
+    if len(lines) == 1 and "." in lines[0] and " " not in lines[0]:
+        return [lines[0]]
+
+    return []
+
+
+def notify(title: str, message: str):
+    if shutil.which("notify-send") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        try:
+            subprocess.run(["notify-send", "-a", "clip2epub", title, message], timeout=2)
+        except Exception:
+            pass
+
+
+def main():
+    if not ARTICLE2EPUB.exists():
+        print(f"Error: article2epub not found at {ARTICLE2EPUB}", file=sys.stderr)
+        sys.exit(1)
+
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print("""Usage: clip2epub [URL / arXiv ID ...] [options]
+       nom2kepub [URL / arXiv ID ...] [options]
+
+Fast CLI helper and clipboard hook. Grabs URLs or arXiv IDs from arguments
+or the system clipboard (wl-paste / xclip) and converts them into e-ink EPUB/KEPUB
+files in ~/Articles/Inbox via article2epub.
+
+Arguments:
+  [URL / arXiv ID ...]   Optional URL(s) or arXiv ID(s). If omitted, reads from clipboard.
+
+Options:
+  -o, --output PATH      Explicit output file path
+  -d, --dir DIR          Destination directory (default: ~/Articles/Inbox)
+  -t, --title TITLE      Override article title
+  -a, --author NAME      Override author name
+  --no-kepub             Save as standard .epub without kepubify
+  -h, --help             Show this help message
+""")
+        sys.exit(0)
+
+    passthrough_flags = []
+    input_targets = []
+
+    # Parse arguments: extract flags vs targets
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ("-o", "--output", "-d", "--dir", "-t", "--title", "-a", "--author"):
+            passthrough_flags.append(arg)
+            if i + 1 < len(args):
+                passthrough_flags.append(args[i + 1])
+                i += 1
+        elif arg.startswith("-"):
+            passthrough_flags.append(arg)
+        else:
+            input_targets.append(arg)
+        i += 1
+
+    if not input_targets:
+        print("[clip2epub] No URL arguments provided. Checking system clipboard...")
+        clip_text = get_clipboard_text()
+        if not clip_text:
+            print("[clip2epub] Clipboard is empty or inaccessible.", file=sys.stderr)
+            print("Usage: clip2epub [URL / arXiv ID ...] [flags]", file=sys.stderr)
+            sys.exit(1)
+
+        input_targets = extract_targets(clip_text)
+        if not input_targets:
+            print(f"[clip2epub] No valid URL or arXiv ID found in clipboard text:\n'{clip_text[:100]}...'", file=sys.stderr)
+            sys.exit(1)
+        print(f"[clip2epub] Found {len(input_targets)} target(s) from clipboard:")
+        for t in input_targets:
+            print(f"  - {t}")
+
+    success_count = 0
+    for target in input_targets:
+        print(f"\nProcessing: {target}")
+        cmd = [str(ARTICLE2EPUB), target] + passthrough_flags
+        res = subprocess.run(cmd)
+        if res.returncode == 0:
+            success_count += 1
+
+    if success_count > 0:
+        notify("Article Converted", f"Successfully converted {success_count} item(s) to ~/Articles/Inbox")
+        print(f"\n[clip2epub] Finished. {success_count}/{len(input_targets)} converted successfully.")
+    else:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

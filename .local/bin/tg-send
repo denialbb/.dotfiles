@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_FILE="${TELEGRAM_NOTIFY_CONFIG:-$HOME/.config/telegram-notify.conf}"
+API="https://api.telegram.org"
+
+# Load config if present
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    . "$CONFIG_FILE"
+fi
+
+TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+
+fail() { echo "error: $*" >&2; exit 1; }
+
+usage() {
+    cat <<'EOF'
+tg-send — push messages to a Telegram chat (push-only, no reads)
+
+Usage:
+  tg-send [command] [options] [message]
+
+Commands (default: send):
+  send      Send a message. Message = remaining args, or stdin if empty.
+  chatid    Print the chat id of the latest message sent to the bot.
+  me        Verify the configured bot token (getMe).
+  setup     Print setup instructions; creates an empty config file
+            (mode 600) if missing.
+
+Options (for send):
+  --title TEXT   Bold heading line above the message.
+  --silent       Disable the notification sound on the recipient's device.
+  --html         Treat the message as HTML (<b>markup</b>). Without this
+                 flag the message and title are escaped first.
+  --help         Show this help.
+
+Config (shell-style file at ~/.config/telegram-notify.conf):
+    TELEGRAM_BOT_TOKEN="123456:ABC..."
+    TELEGRAM_CHAT_ID="-1001234567890"
+  Env vars TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID override the file.
+
+Examples:
+  tg-send "deploy finished"
+  tg-send --title "Build" --silent "tests passed (12s)"
+  tg-send --html "<b>Agent done</b> — results in /tmp/x"
+  echo "long report..." | tg-send send
+  tg-send setup
+  tg-send chatid
+  tg-send me
+EOF
+    exit 0
+}
+
+cmd_me() {
+    [ -z "$TOKEN" ] && fail "no token configured (run 'tg-send setup')"
+    local out
+    out=$(curl -sfS "$API/bot$TOKEN/getMe" 2>/dev/null) ||
+        fail "token rejected by Telegram — double-check TELEGRAM_BOT_TOKEN"
+    echo "$out" | python3 -c '
+import sys, json
+d = json.load(sys.stdin)["result"]
+print(f"OK: @{d[\"username\"]} (id {d[\"id\"]}, name {d.get(\"first_name\",\"\")!r})")
+'
+}
+
+cmd_chatid() {
+    [ -z "$TOKEN" ] && fail "no token configured (run 'tg-send setup')"
+    local out cid
+    out=$(curl -sfS "$API/bot$TOKEN/getUpdates" 2>/dev/null) ||
+        fail "getUpdates failed — double-check TELEGRAM_BOT_TOKEN"
+    if cid=$(echo "$out" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("Malformed response from Telegram.", file=sys.stderr)
+    sys.exit(1)
+if not d.get("ok"):
+    print("Telegram error: %s" % d.get("description", "?"), file=sys.stderr)
+    sys.exit(1)
+ups = d.get("result", [])
+if not ups:
+    print("No updates yet — open the bot in Telegram and send it any message (e.g. /start).", file=sys.stderr)
+    sys.exit(1)
+last = ups[-1].get("message") or ups[-1].get("channel_post") or {}
+cid = last.get("chat", {}).get("id")
+if cid is None:
+    print("Could not determine chat id from the latest update.", file=sys.stderr)
+    sys.exit(1)
+print(cid)
+'); then
+        echo "chat id: $cid"
+        echo "Add it to the config:"
+        echo "  echo \"TELEGRAM_CHAT_ID=$cid\" >> $CONFIG_FILE"
+    else
+        exit 1
+    fi
+}
+
+cmd_setup() {
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        : > "$CONFIG_FILE"
+        chmod 600 "$CONFIG_FILE"
+        echo "created $CONFIG_FILE (mode 600)"
+    fi
+    if [ -z "$TOKEN" ]; then
+        cat <<EOF
+Configure your Telegram bot:
+
+1. Create the bot: open @BotFather in Telegram and run /newbot.
+   Follow the prompts; it will give you a token like:
+       123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+2. Save it (from a terminal on this machine):
+       echo 'TELEGRAM_BOT_TOKEN="PASTE-TOKEN-HERE"' > $CONFIG_FILE
+       chmod 600 $CONFIG_FILE
+
+3. Message your bot once from your phone (e.g. /start), then fetch the chat id:
+       tg-send chatid
+   ...and append it to the config:
+       echo 'TELEGRAM_CHAT_ID="<the printed id>"' >> $CONFIG_FILE
+
+4. Test:
+       tg-send "hello from my machine"
+
+Alternative: set TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID as environment
+variables (they override the file). Never commit the token to git or
+share it with anyone.
+EOF
+    else
+        echo "token is set in $CONFIG_FILE (or env)"
+        cmd_me || true
+        if [ -z "$CHAT_ID" ]; then
+            echo
+            echo "No chat id yet: run 'tg-send chatid' after messaging the bot."
+        fi
+    fi
+}
+
+cmd_send() {
+    local title="" silent=0 html=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --title) [ $# -ge 2 ] || fail "--title needs a value"; title="$2"; shift 2 ;;
+            --silent) silent=1; shift ;;
+            --html) html=1; shift ;;
+            --help) usage ;;
+            --) shift; break ;;
+            -*) fail "unknown option: $1 (see 'tg-send --help')" ;;
+            *) break ;;
+        esac
+    done
+
+    local msg
+    if [ $# -ge 1 ]; then
+        msg="$*"
+    elif [ -t 0 ]; then
+        fail "empty message — pass text as an argument or pipe it in"
+    else
+        msg="$(cat || true)"
+    fi
+    [ -z "$msg" ] && fail "empty message — pass text as an argument or pipe it in"
+
+    [ -z "$TOKEN" ] && fail "no token configured (run 'tg-send setup')"
+    [ -z "$CHAT_ID" ] && fail "no chat id configured (run 'tg-send chatid')"
+
+    local use_html=0
+    [ -n "$title" ] && use_html=1
+    [ "$html" -eq 1 ] && use_html=1
+
+    local body
+    if [ "$use_html" -eq 1 ]; then
+        body=$(python3 - "$msg" "$title" "$html" <<'PY'
+import html, sys
+msg, title = sys.argv[1], sys.argv[2]
+use_html = sys.argv[3] == "1"
+body = msg if use_html else html.escape(msg)
+if title:
+    body = f"<b>{html.escape(title)}</b>\n\n{body}"
+print(body)
+PY
+)
+    else
+        body="$msg"
+    fi
+
+    local args=(--data-urlencode "chat_id=$CHAT_ID" --data-urlencode "text=$body")
+    [ "$use_html" -eq 1 ] && args+=(--data-urlencode "parse_mode=HTML")
+    [ "$silent" -eq 1 ] && args+=(--data-urlencode "disable_notification=true")
+
+    local resp code
+    resp=$(curl -sS -w '\n%{http_code}' "$API/bot$TOKEN/sendMessage" "${args[@]}")
+    code="${resp##*$'\n'}"
+    resp="${resp%$'\n'*}"
+    if [ "$code" != "200" ]; then
+        local desc
+        desc=$(echo "$resp" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("description","?"))' 2>/dev/null || echo "$resp")
+        fail "Telegram said: $desc (HTTP $code)"
+    fi
+    echo "sent ✓"
+}
+
+cmd="${1:-send}"
+case "$cmd" in
+    send) shift || true; cmd_send "$@" ;;
+    chatid) cmd_chatid ;;
+    me) cmd_me ;;
+    setup) cmd_setup ;;
+    --help|-h|help) usage ;;
+    *) cmd_send "$@" ;;
+esac

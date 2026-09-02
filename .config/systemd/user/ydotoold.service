@@ -1,0 +1,11 @@
+[Unit]
+Description=ydotool daemon
+Documentation=man:ydotoold(1)
+
+[Service]
+ExecStart=/usr/bin/sg input -c /usr/bin/ydotoold
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

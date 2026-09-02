@@ -1,0 +1,22 @@
+#!/bin/bash
+
+lockfile="$HOME/.local/share/vocalinux/instance.lock"
+pid=""
+
+if [ -f "$lockfile" ]; then
+  pid=$(cat "$lockfile" 2>/dev/null)
+  if ! kill -0 "$pid" 2>/dev/null; then
+    pid=""
+  fi
+fi
+
+if [ -z "$pid" ]; then
+  printf '{"text": "", "tooltip": "Vocalinux - Stopped", "class": "stopped"}\n'
+  exit 0
+fi
+
+if pactl list source-outputs 2>/dev/null | grep -q "application.process.id = \"$pid\""; then
+  printf '{"text": "", "tooltip": "Vocalinux - Recording", "class": "recording"}\n'
+else
+  printf '{"text": "", "tooltip": "Vocalinux - Idle", "class": "idle"}\n'
+fi

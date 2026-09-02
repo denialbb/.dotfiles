@@ -1,0 +1,800 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "feedparser>=6.0.10",
+#   "pyyaml>=6.0",
+#   "trafilatura>=1.12.0",
+#   "readability-lxml>=0.8.1",
+#   "beautifulsoup4>=4.12.0",
+#   "requests>=2.31.0",
+#   "ebooklib>=0.18",
+#   "lxml>=5.0.0",
+#   "python-dateutil>=2.8.2",
+# ]
+# ///
+"""
+ai-daily-digest - Automated multi-chapter e-ink digest generator for AI feeds.
+Reads feeds from ~/.config/nom/config.yml, fetches recent articles, and bundles them
+into a clean, multi-chapter KEPUB/EPUB in ~/Articles/Inbox.
+"""
+
+import os
+import sys
+import re
+import html
+import time
+import argparse
+import datetime
+import subprocess
+import warnings
+from pathlib import Path
+from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import yaml
+import feedparser
+import requests
+import dateutil.parser
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from readability import Document
+import trafilatura
+import ebooklib
+from ebooklib import epub
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+DEFAULT_CONFIG_PATH = Path.home() / ".config" / "nom" / "config.yml"
+DEFAULT_INBOX_DIR = Path(os.environ.get("ARTICLES_INBOX_DIR", Path.home() / "Articles" / "Inbox"))
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+EINK_CSS = """
+@namespace epub "http://www.idpf.org/2007/ops";
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Liberation Sans", "DejaVu Serif", Georgia, serif;
+    line-height: 1.55;
+    margin: 1.5em 1em;
+    padding: 0;
+    color: #000;
+    background-color: #fff;
+    text-align: justify;
+}
+h1, h2, h3, h4, h5, h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Liberation Sans", sans-serif;
+    line-height: 1.25;
+    margin-top: 1.3em;
+    margin-bottom: 0.4em;
+    text-align: left;
+    font-weight: 700;
+}
+h1.digest-title {
+    font-size: 2.0em;
+    margin-bottom: 0.2em;
+    text-align: center;
+}
+.digest-subtitle {
+    text-align: center;
+    font-size: 1.1em;
+    color: #444;
+    margin-bottom: 1.5em;
+    font-style: italic;
+}
+.digest-stats {
+    background-color: #f6f6f6;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 1em;
+    margin: 1.5em 0;
+    font-size: 0.9em;
+}
+.digest-stats p {
+    margin: 0.3em 0;
+}
+h1.article-title {
+    font-size: 1.6em;
+    margin-bottom: 0.2em;
+}
+.article-meta {
+    font-size: 0.85em;
+    color: #444;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.8em;
+    margin-bottom: 1.5em;
+    text-align: left;
+}
+.article-meta p {
+    margin: 0.2em 0;
+}
+.toc-section {
+    margin: 1.5em 0;
+}
+.toc-section h2 {
+    font-size: 1.3em;
+    border-bottom: 2px solid #333;
+    padding-bottom: 0.2em;
+    margin-bottom: 0.6em;
+}
+.toc-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0.5em 0;
+}
+.toc-list li {
+    margin: 0.8em 0;
+    padding-bottom: 0.5em;
+    border-bottom: 1px dotted #ccc;
+}
+.toc-list li a {
+    font-size: 1.05em;
+    font-weight: 600;
+    text-decoration: none;
+    color: #000;
+}
+.toc-list li a:hover {
+    text-decoration: underline;
+}
+.toc-meta {
+    font-size: 0.8em;
+    color: #555;
+    margin-top: 0.2em;
+}
+p {
+    margin: 0.8em 0;
+    text-indent: 0;
+}
+blockquote {
+    border-left: 3px solid #666;
+    margin: 1em 0;
+    padding-left: 1em;
+    font-style: italic;
+    color: #333;
+}
+pre, code {
+    font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace;
+    font-size: 0.85em;
+    background-color: #f4f4f4;
+    padding: 0.1em 0.3em;
+    border-radius: 2px;
+}
+pre {
+    padding: 0.8em;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid #ddd;
+}
+pre code {
+    background-color: transparent;
+    padding: 0;
+}
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+}
+hr {
+    border: 0;
+    height: 1px;
+    background: #ccc;
+    margin: 2em 0;
+}
+a {
+    color: #000;
+    text-decoration: underline;
+}
+ul, ol {
+    margin: 0.8em 0;
+    padding-left: 1.5em;
+}
+li {
+    margin: 0.3em 0;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.2em 0;
+}
+th, td {
+    border: 1px solid #999;
+    padding: 0.4em 0.6em;
+    text-align: left;
+}
+th {
+    background-color: #eee;
+}
+.back-to-toc {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid #eee;
+    font-size: 0.9em;
+    text-align: center;
+}
+"""
+
+
+def sanitize_filename(title: str) -> str:
+    cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
+    cleaned = re.sub(r"[\s\t\n]+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    cleaned = cleaned.strip("._-")
+    return cleaned[:70] if cleaned else "digest"
+
+
+def load_nom_feeds(config_path: Path, tag: str | None = "ai", include_all: bool = False) -> list[dict]:
+    if not config_path.exists():
+        raise FileNotFoundError(f"Nom config file not found at: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+
+    raw_feeds = cfg.get("feeds", [])
+    if include_all or not tag:
+        return raw_feeds
+
+    tag_lower = tag.lower()
+    selected = []
+    for feed in raw_feeds:
+        tags = [str(t).lower() for t in feed.get("tags", [])]
+        if tag_lower in tags or any(tag_lower in t for t in tags):
+            selected.append(feed)
+    return selected
+
+
+def parse_datetime(entry: dict) -> datetime.datetime | None:
+    # Check feedparser parsed struct_time
+    if hasattr(entry, "published_parsed") and entry.published_parsed:
+        try:
+            return datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed), datetime.timezone.utc)
+        except Exception:
+            pass
+    if hasattr(entry, "updated_parsed") and entry.updated_parsed:
+        try:
+            return datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed), datetime.timezone.utc)
+        except Exception:
+            pass
+
+    # Try string fields
+    for field in ("published", "updated", "pubDate", "created", "date"):
+        val = entry.get(field)
+        if val:
+            try:
+                dt = dateutil.parser.parse(val)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                return dt
+            except Exception:
+                pass
+    return None
+
+
+def fetch_feed_entries(feed_info: dict, cutoff_time: datetime.datetime, limit_per_feed: int = 6) -> list[dict]:
+    feed_url = feed_info.get("url")
+    feed_name = feed_info.get("name", "Unknown Feed")
+    if not feed_url:
+        return []
+
+    try:
+        resp = requests.get(feed_url, headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+        d = feedparser.parse(resp.content)
+    except Exception as err:
+        # Fallback to direct URL parse
+        try:
+            d = feedparser.parse(feed_url)
+        except Exception:
+            return []
+
+    entries = []
+    for entry in d.entries:
+        entry_title = entry.get("title", "").strip()
+        if not entry_title:
+            continue
+        entry_link = entry.get("link", "").strip()
+        if not entry_link and hasattr(entry, "links") and entry.links:
+            entry_link = entry.links[0].get("href", "")
+
+        dt = parse_datetime(entry)
+        if dt and dt < cutoff_time:
+            continue
+
+        # Get author
+        author = entry.get("author", "")
+        if not author and hasattr(entry, "authors") and entry.authors:
+            author = ", ".join(a.get("name", "") for a in entry.authors if a.get("name"))
+        if not author:
+            author = feed_name
+
+        # Extract summary / content
+        content_val = ""
+        if hasattr(entry, "content") and entry.content:
+            content_val = entry.content[0].get("value", "")
+        if not content_val:
+            content_val = entry.get("summary", "") or entry.get("description", "")
+
+        # Format published date string
+        date_str = dt.strftime("%Y-%m-%d %H:%M UTC") if dt else datetime.date.today().isoformat()
+
+        entries.append({
+            "feed_name": feed_name,
+            "feed_url": feed_url,
+            "title": entry_title,
+            "link": entry_link,
+            "author": author,
+            "date": date_str,
+            "datetime": dt or datetime.datetime.now(datetime.timezone.utc),
+            "feed_summary": content_val,
+        })
+
+        if len(entries) >= limit_per_feed:
+            break
+
+    return entries
+
+
+def clean_html_body(raw_html: str, source_url: str = "") -> str:
+    if not raw_html:
+        return "<p><em>(No content available)</em></p>"
+
+    soup = BeautifulSoup(raw_html, "html.parser")
+
+    # Remove script, style, form, iframe, nav, footer, header elements
+    for tag in soup(["script", "style", "form", "iframe", "button", "input", "noscript", "nav"]):
+        tag.decompose()
+
+    # Clean attributes except standard formatting & links
+    allowed_tags = {
+        "p", "h1", "h2", "h3", "h4", "h5", "h6", "a", "b", "strong", "i", "em", "u",
+        "blockquote", "pre", "code", "ul", "ol", "li", "table", "thead", "tbody",
+        "tr", "th", "td", "img", "hr", "br", "div", "span", "section", "article"
+    }
+
+    for tag in list(soup.find_all(True)):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+        else:
+            # Keep only safe attributes
+            attrs = dict(tag.attrs)
+            for attr in attrs:
+                if tag.name == "a" and attr == "href":
+                    continue
+                elif tag.name == "img" and attr in ("src", "alt", "title"):
+                    continue
+                elif attr == "class":
+                    continue
+                del tag[attr]
+
+    # Convert to valid string
+    body = str(soup)
+    # Remove XML declarations, DOCTYPE, or outer html tags if present
+    body = re.sub(r"<\?xml[^>]*\?>", "", body, flags=re.IGNORECASE)
+    body = re.sub(r"<!DOCTYPE[^>]*>", "", body, flags=re.IGNORECASE)
+    body = re.sub(r"<\/?(html|body|main)[^>]*>", "", body, flags=re.IGNORECASE)
+    return body.strip() if body.strip() else "<p><em>(No content extracted)</em></p>"
+
+
+def extract_full_content(article: dict, summary_only: bool = False) -> dict:
+    url = article["link"]
+    title = article["title"]
+    feed_summary = article.get("feed_summary", "")
+
+    # arXiv papers
+    arxiv_match = re.search(r"arxiv\.org\/(?:abs|pdf|html)\/([0-9]+\.[0-9]+(?:v[0-9]+)?)", url)
+    if arxiv_match or "arxiv" in article["feed_name"].lower():
+        arxiv_id = arxiv_match.group(1) if arxiv_match else None
+        if not arxiv_id:
+            id_match = re.search(r"([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?)", title + " " + feed_summary)
+            if id_match:
+                arxiv_id = id_match.group(1)
+
+        clean_abstract = BeautifulSoup(feed_summary, "html.parser").get_text()
+        clean_abstract = re.sub(r"^arXiv:[0-9\.]+v[0-9]+\s*Announce Type:\s*\w+\s*Abstract:\s*", "", clean_abstract, flags=re.IGNORECASE).strip()
+        
+        abstract_html = f"""
+        <div class="arxiv-abstract">
+            <h3>Abstract</h3>
+            <p>{html.escape(clean_abstract)}</p>
+            <hr/>
+            <p><strong>Paper Link:</strong> <a href="{url}">{url}</a></p>
+            {f'<p><strong>PDF:</strong> <a href="https://arxiv.org/pdf/{arxiv_id}.pdf">Download arXiv PDF ({arxiv_id})</a></p>' if arxiv_id else ''}
+        </div>
+        """
+        article["body_html"] = abstract_html
+        return article
+
+    # If summary only requested or feed summary is already very detailed (> 1500 chars)
+    if summary_only:
+        article["body_html"] = clean_html_body(feed_summary, url)
+        return article
+
+    # Attempt web extraction
+    if url.startswith("http://") or url.startswith("https://"):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=8)
+            if resp.status_code == 200:
+                html_text = resp.text
+                # Try trafilatura first
+                extracted_xml = trafilatura.extract(
+                    html_text,
+                    url=url,
+                    include_links=True,
+                    include_images=True,
+                    include_formatting=True,
+                    output_format="xml",
+                )
+                if extracted_xml:
+                    soup = BeautifulSoup(extracted_xml, "xml")
+                    body = str(soup.find("body") or soup)
+                    body = re.sub(r"<\/?(main|body|doc)[^>]*>", "", body)
+                    article["body_html"] = clean_html_body(body, url)
+                    return article
+
+                # Try readability
+                doc = Document(html_text)
+                summary_html = doc.summary()
+                if summary_html and len(summary_html.strip()) > 200:
+                    article["body_html"] = clean_html_body(summary_html, url)
+                    return article
+        except Exception:
+            pass
+
+    # Fallback to feed summary
+    article["body_html"] = clean_html_body(feed_summary, url)
+    return article
+
+
+def convert_to_kepub(epub_path: Path) -> Path:
+    kepubify_bin = Path.home() / ".local" / "bin" / "kepubify"
+    if not kepubify_bin.exists():
+        import shutil
+        which_bin = shutil.which("kepubify")
+        if which_bin:
+            kepubify_bin = Path(which_bin)
+
+    if not kepubify_bin or not kepubify_bin.exists():
+        return epub_path
+
+    kepub_target = epub_path.with_name(epub_path.name.replace(".epub", ".kepub.epub"))
+    cmd = [str(kepubify_bin), "-o", str(kepub_target), str(epub_path)]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0 and kepub_target.exists():
+            epub_path.unlink(missing_ok=True)
+            return kepub_target
+    except Exception:
+        pass
+    return epub_path
+
+
+def build_digest_epub(articles: list[dict], date_str: str, output_path: Path):
+    book = epub.EpubBook()
+    book.set_identifier(f"urn:uuid:ai-digest-{date_str}")
+    book.set_title(f"AI Daily Digest — {date_str}")
+    book.set_language("en")
+    book.add_author("AI Daily Digest")
+
+    # Add stylesheet
+    style_item = epub.EpubItem(
+        uid="style_eink",
+        file_name="style/eink.css",
+        media_type="text/css",
+        content=EINK_CSS.encode("utf-8"),
+    )
+    book.add_item(style_item)
+
+    # Group articles by feed
+    feeds_dict = {}
+    for idx, art in enumerate(articles, start=1):
+        art["index"] = idx
+        art["file_name"] = f"article_{idx:03d}.xhtml"
+        fname = art["feed_name"]
+        feeds_dict.setdefault(fname, []).append(art)
+
+    # 1. Create Index / Table of Contents XHTML chapter
+    toc_html_parts = []
+    toc_html_parts.append(f"""
+    <h1 class="digest-title">AI Daily Digest</h1>
+    <div class="digest-subtitle">{date_str}</div>
+    <div class="digest-stats">
+        <p><strong>Total Articles:</strong> {len(articles)}</p>
+        <p><strong>Feeds Covered:</strong> {len(feeds_dict)}</p>
+        <p><strong>Generated:</strong> {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</p>
+    </div>
+    <hr/>
+    """)
+
+    for feed_name, feed_articles in feeds_dict.items():
+        toc_html_parts.append(f"""
+        <div class="toc-section">
+            <h2>{html.escape(feed_name)} ({len(feed_articles)})</h2>
+            <ul class="toc-list">
+        """)
+        for art in feed_articles:
+            toc_html_parts.append(f"""
+                <li>
+                    <a href="{art['file_name']}">{html.escape(art['title'])}</a>
+                    <div class="toc-meta">By {html.escape(art['author'])} &bull; {html.escape(art['date'])}</div>
+                </li>
+            """)
+        toc_html_parts.append("</ul></div>")
+
+    index_chapter = epub.EpubHtml(title="Table of Contents", file_name="index.xhtml", lang="en")
+    index_chapter.content = f"""<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>AI Daily Digest — {date_str}</title>
+    <link rel="stylesheet" type="text/css" href="style/eink.css"/>
+</head>
+<body>
+    {''.join(toc_html_parts)}
+</body>
+</html>
+""".encode("utf-8")
+    index_chapter.add_item(style_item)
+    book.add_item(index_chapter)
+
+    # 2. Create Article Chapters
+    article_chapters = []
+    toc_links = [epub.Link("index.xhtml", "Table of Contents", "toc")]
+
+    for art in articles:
+        chapter = epub.EpubHtml(title=art["title"], file_name=art["file_name"], lang="en")
+        
+        meta_html = f"""
+        <h1 class="article-title">{html.escape(art['title'])}</h1>
+        <div class="article-meta">
+            <p><strong>Source Feed:</strong> {html.escape(art['feed_name'])}</p>
+            <p><strong>Author:</strong> {html.escape(art['author'])}</p>
+            <p><strong>Date:</strong> {html.escape(art['date'])}</p>
+            <p><strong>Original URL:</strong> <a href="{html.escape(art['link'])}">{html.escape(art['link'])}</a></p>
+        </div>
+        """
+
+        chapter_body = f"""<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>{html.escape(art['title'])}</title>
+    <link rel="stylesheet" type="text/css" href="style/eink.css"/>
+</head>
+<body>
+    {meta_html}
+    <div class="article-body">
+        {art['body_html']}
+    </div>
+    <div class="back-to-toc">
+        <a href="index.xhtml">&larr; Back to Table of Contents</a>
+    </div>
+</body>
+</html>
+"""
+        chapter.content = chapter_body.encode("utf-8")
+        chapter.add_item(style_item)
+        book.add_item(chapter)
+        article_chapters.append(chapter)
+        toc_links.append(epub.Link(art["file_name"], f"[{art['feed_name']}] {art['title']}", f"art_{art['index']}"))
+
+    # Table of contents & spine
+    book.toc = tuple(toc_links)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", index_chapter] + article_chapters
+
+    epub.write_epub(str(output_path), book)
+
+
+EPILOG_TEXT = f"""
+FEATURES & WORKFLOW:
+  - Automatically queries feeds from ~/.config/nom/config.yml (filtered by tag 'ai' by default).
+  - Fetches recent items within the specified lookback window (default 36h).
+  - Automatically extracts web content, arXiv abstracts/PDF links, and formatted RSS summaries.
+  - Bundles everything into a single multi-chapter e-ink publication with a rich Table of Contents.
+  - Automatically converts the output to KEPUB (.kepub.epub) via kepubify for fast e-reader rendering.
+  - Deposits files into ~/Articles/Inbox (or $ARTICLES_INBOX_DIR) ready for KOReader / WebDAV sync.
+
+PRACTICAL EXAMPLES:
+  1. Generate today's digest with default settings:
+     $ ai-daily-digest
+
+  2. Look back 48 hours and allow up to 10 articles per feed:
+     $ ai-daily-digest --hours 48 --limit-per-feed 10
+
+  3. Fast mode using RSS summaries only (skips web scraping):
+     $ ai-daily-digest --summary-only
+
+  4. Generate a digest for all feeds in nom (including non-AI):
+     $ ai-daily-digest --all
+
+  5. Filter feeds by a different tag (e.g. 'tech' or 'science'):
+     $ ai-daily-digest --tag science
+
+  6. Save output to a custom directory or file:
+     $ ai-daily-digest -d ~/Documents/Ebooks
+     $ ai-daily-digest -o ~/Weekly_AI_Digest.kepub.epub --hours 168
+
+ENVIRONMENT VARIABLES:
+  ARTICLES_INBOX_DIR    Custom default output directory (currently: {DEFAULT_INBOX_DIR})
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="ai-daily-digest",
+        description="Fetch latest AI feeds from nom and bundle them into a clean multi-chapter e-ink EPUB/KEPUB.",
+        epilog=EPILOG_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        metavar="PATH",
+        default=str(DEFAULT_CONFIG_PATH),
+        help=f"Path to nom config.yml (default: {DEFAULT_CONFIG_PATH})",
+    )
+    parser.add_argument(
+        "-t",
+        "--tag",
+        metavar="TAG",
+        default="ai",
+        help="Tag to filter feeds from config (default: 'ai'). Use --all to include all feeds.",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Include all feeds from config without tag filtering.",
+    )
+    parser.add_argument(
+        "--hours",
+        type=int,
+        default=36,
+        help="Lookback window in hours for recent entries (default: 36).",
+    )
+    parser.add_argument(
+        "--limit-per-feed",
+        type=int,
+        default=6,
+        help="Maximum entries to take per feed (default: 6).",
+    )
+    parser.add_argument(
+        "--max-total",
+        type=int,
+        default=60,
+        help="Maximum total entries in the digest (default: 60).",
+    )
+    parser.add_argument(
+        "-d",
+        "--dir",
+        metavar="DIR",
+        default=str(DEFAULT_INBOX_DIR),
+        help=f"Destination directory (default: {DEFAULT_INBOX_DIR})",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="PATH",
+        help="Explicit output path (e.g. ~/Articles/Inbox/2026-09-01_AI_Daily_Digest.kepub.epub).",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Fast mode: use RSS summaries only and skip web scraping full text.",
+    )
+    parser.add_argument(
+        "--no-kepub",
+        action="store_true",
+        help="Do not convert to KEPUB; output standard .epub.",
+    )
+
+    args = parser.parse_args()
+
+    config_file = Path(args.config).expanduser().resolve()
+    if not config_file.exists():
+        print(f"Error: Config file not found: {config_file}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Loading feeds from: {config_file}")
+    feeds = load_nom_feeds(config_file, tag=args.tag, include_all=args.all)
+    if not feeds:
+        print(f"No feeds matching tag '{args.tag}' found in {config_file}.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Found {len(feeds)} configured AI feed(s).")
+    print(f"Fetching entries from past {args.hours} hours (limit {args.limit_per_feed} per feed)...")
+
+    cutoff_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=args.hours)
+
+    all_raw_entries = []
+    # Fetch feeds concurrently
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_to_feed = {
+            executor.submit(fetch_feed_entries, f, cutoff_time, args.limit_per_feed): f
+            for f in feeds
+        }
+        for future in as_completed(future_to_feed):
+            feed_meta = future_to_feed[future]
+            try:
+                entries = future.result()
+                if entries:
+                    print(f"  [+] {feed_meta.get('name')}: {len(entries)} recent item(s)")
+                    all_raw_entries.extend(entries)
+                else:
+                    print(f"  [-] {feed_meta.get('name')}: 0 recent items")
+            except Exception as err:
+                print(f"  [x] {feed_meta.get('name')}: Error {err}")
+
+    if not all_raw_entries:
+        print(f"\nNo articles found in the past {args.hours} hours across {len(feeds)} feeds.")
+        print("Tip: Increase the lookback window using --hours (e.g. --hours 72).")
+        sys.exit(0)
+
+    # Deduplicate entries by link or title
+    seen_links = set()
+    unique_entries = []
+    for e in all_raw_entries:
+        key = e["link"] or e["title"].lower().strip()
+        if key not in seen_links:
+            seen_links.add(key)
+            unique_entries.append(e)
+
+    # Sort entries by datetime descending
+    unique_entries.sort(key=lambda x: x["datetime"], reverse=True)
+    if len(unique_entries) > args.max_total:
+        unique_entries = unique_entries[:args.max_total]
+
+    print(f"\nTotal unique articles to process: {len(unique_entries)}")
+    print("Extracting article content & formatting chapters...")
+
+    # Process article content concurrently
+    processed_articles = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_to_art = {
+            executor.submit(extract_full_content, art, args.summary_only): art
+            for art in unique_entries
+        }
+        for future in as_completed(future_to_art):
+            try:
+                res = future.result()
+                processed_articles.append(res)
+            except Exception as err:
+                pass
+
+    # Sort processed articles back to preserve order
+    processed_articles.sort(key=lambda x: x["datetime"], reverse=True)
+
+    today_str = datetime.date.today().isoformat()
+    out_dir = Path(args.dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    base_name = f"{today_str}_AI_Daily_Digest.epub"
+    if args.output:
+        final_target = Path(args.output).expanduser().resolve()
+        final_target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        final_target = out_dir / base_name
+
+    print(f"\nBuilding multi-chapter EPUB ({len(processed_articles)} articles)...")
+    build_digest_epub(processed_articles, today_str, final_target)
+
+    if not args.no_kepub:
+        final_file = convert_to_kepub(final_target)
+    else:
+        final_file = final_target
+
+    file_size_kb = final_file.stat().st_size / 1024
+    print(f"\n{'=' * 60}")
+    print(f"[SUCCESS] AI Daily Digest generated successfully!")
+    print(f"  Title:    AI Daily Digest — {today_str}")
+    print(f"  Path:     {final_file}")
+    print(f"  Articles: {len(processed_articles)}")
+    print(f"  Size:     {file_size_kb:.1f} KB")
+    print(f"{'=' * 60}\n")
+
+
+if __name__ == "__main__":
+    main()

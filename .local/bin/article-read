@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec /usr/bin/uv run --script /home/denial/.local/share/articles-reader/reader.py "$@"

@@ -1,0 +1,725 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "trafilatura>=1.12.0",
+#   "readability-lxml>=0.8.1",
+#   "beautifulsoup4>=4.12.0",
+#   "requests>=2.31.0",
+#   "ebooklib>=0.18",
+#   "lxml>=5.0.0",
+#   "pillow>=10.0.0",
+#   "latex2mathml>=3.77.0",
+# ]
+# ///
+"""
+article2epub - Convert web articles, blog posts, and arXiv papers into clean, e-ink ready EPUB/KEPUB files.
+Deposits output files into ~/Articles/Inbox by default for easy pulling from KOReader / WebDAV / OPDS.
+Includes offline e-ink grayscale image embedding, LaTeX/MathML rendering, and inbox archiving.
+"""
+
+import sys
+import os
+import re
+import argparse
+import datetime
+import subprocess
+import html
+import io
+import time
+import shutil
+from pathlib import Path
+from urllib.parse import urlparse, urljoin
+import base64
+
+import requests
+import trafilatura
+from readability import Document
+from bs4 import BeautifulSoup
+import ebooklib
+from ebooklib import epub
+from PIL import Image
+import latex2mathml.converter
+import warnings
+from bs4 import XMLParsedAsHTMLWarning
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+DEFAULT_INBOX_DIR = Path(os.environ.get("ARTICLES_INBOX_DIR", Path.home() / "Articles" / "Inbox"))
+DEFAULT_ARCHIVE_DIR = Path(os.environ.get("ARTICLES_ARCHIVE_DIR", Path.home() / "Articles" / "Archive"))
+
+EINK_CSS = """
+@namespace epub "http://www.idpf.org/2007/ops";
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Liberation Sans", "DejaVu Serif", Georgia, serif;
+    line-height: 1.55;
+    margin: 1.5em 1em;
+    padding: 0;
+    color: #000;
+    background-color: #fff;
+    text-align: justify;
+}
+h1, h2, h3, h4, h5, h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Liberation Sans", sans-serif;
+    line-height: 1.25;
+    margin-top: 1.3em;
+    margin-bottom: 0.4em;
+    text-align: left;
+    font-weight: 700;
+}
+h1.article-title {
+    font-size: 1.6em;
+    margin-bottom: 0.2em;
+}
+.article-meta {
+    font-size: 0.85em;
+    color: #444;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.8em;
+    margin-bottom: 1.5em;
+    text-align: left;
+}
+.article-meta p {
+    margin: 0.2em 0;
+}
+p {
+    margin: 0.8em 0;
+    text-indent: 0;
+}
+blockquote {
+    border-left: 3px solid #666;
+    margin: 1em 0;
+    padding-left: 1em;
+    font-style: italic;
+    color: #333;
+}
+pre, code {
+    font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace;
+    font-size: 0.85em;
+    background-color: #f4f4f4;
+    padding: 0.1em 0.3em;
+    border-radius: 2px;
+}
+pre {
+    padding: 0.8em;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid #ddd;
+}
+pre code {
+    background-color: transparent;
+    padding: 0;
+}
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.2em auto;
+    border: 1px solid #eee;
+}
+hr {
+    border: 0;
+    height: 1px;
+    background: #ccc;
+    margin: 2em 0;
+}
+a {
+    color: #000;
+    text-decoration: underline;
+}
+ul, ol {
+    margin: 0.8em 0;
+    padding-left: 1.5em;
+}
+li {
+    margin: 0.3em 0;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.2em 0;
+}
+th, td {
+    border: 1px solid #999;
+    padding: 0.4em 0.6em;
+    text-align: left;
+}
+th {
+    background-color: #eee;
+}
+/* Math Styles */
+.math-display {
+    display: block;
+    margin: 1em 0;
+    text-align: center;
+    overflow-x: auto;
+}
+.math-inline {
+    font-style: italic;
+    font-family: "DejaVu Serif", "Times New Roman", serif;
+}
+math {
+    font-size: 1.05em;
+    font-family: "DejaVu Serif", "STIX Two Math", "Cambria Math", serif;
+}
+"""
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def sanitize_filename(title: str) -> str:
+    cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
+    cleaned = re.sub(r"[\s\t\n]+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    cleaned = cleaned.strip("._-")
+    return cleaned[:70] if cleaned else "article"
+
+
+def process_image_to_grayscale_eink(img_bytes: bytes, max_width: int = 1200) -> tuple[bytes, str]:
+    """Converts raw image bytes to 8-bit grayscale JPEG/PNG optimized for e-ink."""
+    try:
+        im = Image.open(io.BytesIO(img_bytes))
+        
+        # Convert RGBA / palette to RGB on white background if transparent
+        if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+            im = im.convert("RGBA")
+            bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
+            im = Image.alpha_composite(bg, im).convert("RGB")
+        elif im.mode != "RGB":
+            im = im.convert("RGB")
+
+        # Convert to 8-bit grayscale (L)
+        im = im.convert("L")
+
+        # Resize if width exceeds e-reader resolution limit
+        if im.width > max_width:
+            ratio = max_width / float(im.width)
+            new_height = int(float(im.height) * ratio)
+            im = im.resize((max_width, new_height), Image.Resampling.LANCZOS)
+
+        out_io = io.BytesIO()
+        im.save(out_io, format="JPEG", quality=82, optimize=True)
+        return out_io.getvalue(), "image/jpeg"
+    except Exception:
+        # Fallback to original bytes
+        return img_bytes, "image/jpeg"
+
+
+def render_latex_formulas(text_or_html: str) -> str:
+    """Converts raw LaTeX formulas ($...$ and $$...$$) to MathML or styled spans."""
+    def replace_display(match):
+        latex = match.group(1).strip()
+        try:
+            mathml = latex2mathml.converter.convert(latex)
+            return f'<div class="math-display">{mathml}</div>'
+        except Exception:
+            return f'<div class="math-display"><code>{html.escape(latex)}</code></div>'
+
+    def replace_inline(match):
+        latex = match.group(1).strip()
+        try:
+            mathml = latex2mathml.converter.convert(latex)
+            return f'<span class="math-inline">{mathml}</span>'
+        except Exception:
+            return f'<span class="math-inline"><em>{html.escape(latex)}</em></span>'
+
+    # Display math: $$ ... $$ or \[ ... \]
+    res = re.sub(r"\$\$(.+?)\$\$", replace_display, text_or_html, flags=re.DOTALL)
+    res = re.sub(r"\\\[(.+?)\\\]", replace_display, res, flags=re.DOTALL)
+
+    # Inline math: $ ... $ (avoiding currency symbols)
+    res = re.sub(r"(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)", replace_inline, res)
+    res = re.sub(r"\\\((.+?)\\\)", replace_inline, res)
+
+    return res
+
+
+def extract_and_embed_images(html_str: str, base_url: str) -> tuple[str, list[dict]]:
+    """Downloads inline images, converts them to grayscale, and rewrites HTML src attributes."""
+    soup = BeautifulSoup(html_str, "html.parser")
+    embedded_images = []
+    img_counter = 1
+
+    for img_tag in soup.find_all("img"):
+        src = img_tag.get("src") or img_tag.get("data-src") or img_tag.get("data-original")
+        if not src:
+            continue
+
+        raw_bytes = None
+        media_type = "image/jpeg"
+
+        try:
+            if src.startswith("data:image/"):
+                # Handle base64 data URI
+                match = re.match(r"data:(image\/[a-zA-Z0-9.+_-]+);base64,(.+)", src)
+                if match:
+                    raw_bytes = base64.b64decode(match.group(2))
+            else:
+                full_url = urljoin(base_url, src)
+                resp = requests.get(full_url, headers=HEADERS, timeout=12)
+                if resp.status_code == 200:
+                    raw_bytes = resp.content
+
+            if raw_bytes and len(raw_bytes) > 200:
+                opt_bytes, media_type = process_image_to_grayscale_eink(raw_bytes)
+                ext = "jpg" if "jpeg" in media_type else "png"
+                internal_name = f"img_{img_counter}.{ext}"
+                epub_path = f"images/{internal_name}"
+
+                embedded_images.append({
+                    "id": f"img_{img_counter}",
+                    "file_name": epub_path,
+                    "media_type": media_type,
+                    "content": opt_bytes,
+                })
+
+                img_tag["src"] = epub_path
+                img_counter += 1
+            else:
+                # Remove broken or tiny tracker image
+                img_tag.decompose()
+        except Exception:
+            # Leave tag or decompose on failure
+            pass
+
+    return str(soup), embedded_images
+
+
+def fetch_arxiv_details(arxiv_id: str):
+    """Fetch structured metadata and paper content from fast arXiv CDN abstract & HTML endpoint."""
+    clean_id = re.sub(r"v[0-9]+$", "", arxiv_id)
+    arxiv_url = f"https://arxiv.org/abs/{clean_id}"
+    
+    title = f"arXiv Paper {clean_id}"
+    authors = []
+    summary = ""
+    published = datetime.date.today().isoformat()
+
+    try:
+        r = requests.get(arxiv_url, headers=HEADERS, timeout=8)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            title_el = soup.find("h1", class_=re.compile(r"title"))
+            if title_el:
+                title = title_el.text.replace("Title:", "").strip()
+            authors_el = soup.find("div", class_=re.compile(r"authors"))
+            if authors_el:
+                authors = [a.text.strip() for a in authors_el.find_all("a")]
+            abstract_el = soup.find("blockquote", class_=re.compile(r"abstract"))
+            if abstract_el:
+                summary = abstract_el.text.replace("Abstract:", "").strip()
+            dateline_el = soup.find("div", class_=re.compile(r"dateline"))
+            if dateline_el:
+                published = dateline_el.text.strip().strip("[]")
+    except Exception:
+        pass
+
+    # Try 1: Official arXiv HTML format (arxiv.org/html/<id>)
+    html_url = f"https://arxiv.org/html/{clean_id}"
+    full_html = None
+    try:
+        h_resp = requests.get(html_url, headers=HEADERS, timeout=12)
+        if h_resp.status_code == 200 and "ltx_document" in h_resp.text:
+            doc = Document(h_resp.text)
+            full_html = doc.summary()
+    except Exception:
+        pass
+
+    # Try 2: ar5iv HTML mirror if official HTML was not available
+    if not full_html:
+        ar5iv_url = f"https://ar5iv.labs.arxiv.org/html/{clean_id}"
+        try:
+            a_resp = requests.get(ar5iv_url, headers=HEADERS, timeout=12)
+            if a_resp.status_code == 200 and "ltx_document" in a_resp.text:
+                doc = Document(a_resp.text)
+                full_html = doc.summary()
+        except Exception:
+            pass
+
+    if not full_html:
+        summary_rendered = render_latex_formulas(summary)
+        body_html = f"""
+        <div class="arxiv-paper">
+            <p><strong>arXiv ID:</strong> <a href="{arxiv_url}">{arxiv_id}</a></p>
+            <p><strong>Authors:</strong> {', '.join(authors)}</p>
+            <p><strong>Published:</strong> {published}</p>
+            <h2>Abstract</h2>
+            <p>{summary_rendered}</p>
+            <hr/>
+            <p><em>PDF full paper:</em> <a href="https://arxiv.org/pdf/{clean_id}.pdf">https://arxiv.org/pdf/{clean_id}.pdf</a></p>
+        </div>
+        """
+    else:
+        body_html = f"""
+        <div class="arxiv-paper">
+            <p><strong>arXiv ID:</strong> <a href="{arxiv_url}">{arxiv_id}</a></p>
+            <p><strong>Authors:</strong> {', '.join(authors)}</p>
+            <p><strong>Published:</strong> {published}</p>
+            <hr/>
+            {full_html}
+        </div>
+        """
+
+    return {
+        "title": f"[arXiv] {title}",
+        "author": ", ".join(authors[:3]) + (" et al." if len(authors) > 3 else ""),
+        "date": published,
+        "source_url": arxiv_url,
+        "body_html": body_html,
+    }
+
+
+def extract_web_article(url: str):
+    arxiv_match = re.search(r"arxiv\.org\/(?:abs|pdf|html)\/([0-9]+\.[0-9]+(?:v[0-9]+)?)", url)
+    if arxiv_match:
+        return fetch_arxiv_details(arxiv_match.group(1))
+
+    resp = requests.get(url, headers=HEADERS, timeout=20)
+    resp.raise_for_status()
+    html_content = resp.text
+
+    metadata = trafilatura.extract_metadata(html_content, default_url=url)
+    
+    extracted_xml = trafilatura.extract(
+        html_content,
+        url=url,
+        include_links=True,
+        include_images=True,
+        include_formatting=True,
+        output_format="xml",
+    )
+
+    title = None
+    author = None
+    date_str = None
+    if metadata:
+        title = metadata.title
+        author = metadata.author
+        date_str = metadata.date
+
+    doc = Document(html_content)
+    if not title:
+        title = doc.title() or "Untitled Article"
+
+    body_html = None
+    if extracted_xml:
+        soup = BeautifulSoup(extracted_xml, "xml")
+        body_html = str(soup.find("body") or soup)
+        body_html = re.sub(r"<\/?(main|body|doc)[^>]*>", "", body_html)
+    
+    if not body_html or len(body_html.strip()) < 100:
+        body_html = doc.summary()
+
+    # Process LaTeX math formulas in article body
+    body_html = render_latex_formulas(body_html)
+
+    if not date_str:
+        date_str = datetime.date.today().isoformat()
+
+    domain = urlparse(url).netloc
+    if not author:
+        author = domain or "Web"
+
+    return {
+        "title": title.strip(),
+        "author": author.strip(),
+        "date": date_str,
+        "source_url": url,
+        "body_html": body_html,
+    }
+
+
+def create_epub(article_data: dict, output_path: Path):
+    book = epub.EpubBook()
+    book.set_identifier(article_data.get("source_url", str(output_path)))
+    book.set_title(article_data["title"])
+    book.set_language("en")
+    book.add_author(article_data.get("author", "Unknown Author"))
+
+    # Style
+    style_item = epub.EpubItem(
+        uid="style_eink",
+        file_name="style/eink.css",
+        media_type="text/css",
+        content=EINK_CSS.encode("utf-8"),
+    )
+    book.add_item(style_item)
+
+    # Process inline images & embed locally
+    clean_html, embedded_images = extract_and_embed_images(
+        article_data["body_html"],
+        article_data.get("source_url", "")
+    )
+
+    for img_info in embedded_images:
+        img_item = epub.EpubItem(
+            uid=img_info["id"],
+            file_name=img_info["file_name"],
+            media_type=img_info["media_type"],
+            content=img_info["content"],
+        )
+        book.add_item(img_item)
+
+    # Main chapter content
+    chapter = epub.EpubHtml(title=article_data["title"], file_name="article.xhtml", lang="en")
+    
+    meta_html = f"""
+    <h1 class="article-title">{html.escape(article_data['title'])}</h1>
+    <div class="article-meta">
+        <p><strong>Author:</strong> {html.escape(article_data.get('author', 'Unknown'))}</p>
+        <p><strong>Date:</strong> {html.escape(article_data.get('date', ''))}</p>
+        <p><strong>Source:</strong> <a href="{article_data.get('source_url', '#')}">{html.escape(article_data.get('source_url', ''))}</a></p>
+    </div>
+    """
+    
+    chapter.content = f"""<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>{html.escape(article_data['title'])}</title>
+    <link rel="stylesheet" type="text/css" href="style/eink.css"/>
+</head>
+<body>
+    {meta_html}
+    <div class="article-body">
+        {clean_html}
+    </div>
+</body>
+</html>
+""".encode("utf-8")
+    
+    chapter.add_item(style_item)
+    book.add_item(chapter)
+
+    book.toc = (epub.Link("article.xhtml", article_data["title"], "article"),)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", chapter]
+
+    epub.write_epub(str(output_path), book)
+
+
+def convert_to_kepub(epub_path: Path) -> Path:
+    """Uses kepubify to produce a .kepub.epub file."""
+    kepubify_bin = Path.home() / ".local" / "bin" / "kepubify"
+    if not kepubify_bin.exists():
+        import shutil
+        which_bin = shutil.which("kepubify")
+        if which_bin:
+            kepubify_bin = Path(which_bin)
+
+    if not kepubify_bin or not kepubify_bin.exists():
+        return epub_path
+
+    kepub_target = epub_path.with_name(epub_path.name.replace(".epub", ".kepub.epub"))
+    cmd = [str(kepubify_bin), "-o", str(kepub_target), str(epub_path)]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0 and kepub_target.exists():
+            epub_path.unlink(missing_ok=True)
+            return kepub_target
+    except Exception:
+        pass
+    return epub_path
+
+
+def archive_inbox(inbox_dir: Path, archive_dir: Path, older_than_days: int = 30):
+    """Moves files older than N days from inbox to archive directory."""
+    if not inbox_dir.exists():
+        print(f"[Archive] Inbox directory does not exist: {inbox_dir}")
+        return
+
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    cutoff_time = time.time() - (older_than_days * 86400)
+    moved_count = 0
+
+    print(f"[Archive] Scanning '{inbox_dir}' for files older than {older_than_days} days...")
+    for item in inbox_dir.glob("*.*"):
+        if item.is_file() and item.suffix in (".epub", ".kepub"):
+            mtime = item.stat().st_mtime
+            if mtime < cutoff_time:
+                dest = archive_dir / item.name
+                shutil.move(str(item), str(dest))
+                print(f"  Archived: {item.name} -> {dest}")
+                moved_count += 1
+
+    print(f"[Archive] Complete. Moved {moved_count} file(s) to '{archive_dir}'.\n")
+
+
+EPILOG_TEXT = f"""
+SUPPORTED INPUTS:
+  - Web URLs:         Standard HTTP/HTTPS article links (blogs, news, substack, etc.)
+  - arXiv Identifiers: Raw IDs like '2310.06825' or '1706.03762'
+  - arXiv URLs:       'https://arxiv.org/abs/2310.06825' or 'https://arxiv.org/html/2310.06825'
+  - Local Files:      Path to a local HTML, text, or markdown file
+  - Standard Input:   '-' to read content directly from stdin (e.g. piped from curl/cat)
+
+E-INK & KOBO OPTIMIZATIONS:
+  - Grayscale Media:  Downloads inline images, converts them to 8-bit e-ink grayscale,
+                      compresses, and embeds them directly inside the EPUB for 100% offline reading.
+  - Math & Formulas:  Extracts arXiv HTML MathML and converts LaTeX formulas ($...$) to MathML.
+  - KEPUB Conversion: Automatically converts outputs to KEPUB (.kepub.epub) via kepubify for
+                      fast page turns, chapter progress, and native footnotes on Kobo/KOReader.
+
+PRACTICAL EXAMPLES:
+  1. Convert a web article (with embedded grayscale figures):
+     $ article2epub https://simonwillison.net/2026/Sep/1/python-315-rc-2/
+
+  2. Convert an arXiv paper using its identifier:
+     $ article2epub 2310.06825
+
+  3. Convert an arXiv paper from a URL:
+     $ paper2epub https://arxiv.org/abs/1706.03762
+
+  4. Read from stdin and provide a custom title/author:
+     $ curl -s https://example.com/post | article2epub - -t "My Custom Title" -a "Jane Doe"
+
+  5. Archive files in the inbox older than 14 days:
+     $ article2epub --archive 14
+
+  6. Batch convert a list of URLs from a file:
+     $ while read -r url; do article2epub "$url"; done < reading_list.txt
+
+ENVIRONMENT VARIABLES:
+  ARTICLES_INBOX_DIR    Custom default output directory (currently: {DEFAULT_INBOX_DIR})
+  ARTICLES_ARCHIVE_DIR  Custom archive directory (currently: {DEFAULT_ARCHIVE_DIR})
+
+ALIASES / SYMLINKS:
+  article2epub, url2epub, paper2epub, clip2epub, nom2kepub
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="article2epub",
+        description="Convert web articles, blogs, and arXiv papers into clean, e-ink formatted EPUB/KEPUB files.",
+        epilog=EPILOG_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "input",
+        nargs="?",
+        help="Target URL, arXiv ID (e.g. 2310.06825), or path to a local file. Use '-' to read from stdin.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="PATH",
+        help="Explicit output file path (e.g. ~/Books/paper.kepub.epub). Overrides directory/filename defaults.",
+    )
+    parser.add_argument(
+        "-d",
+        "--dir",
+        metavar="DIR",
+        default=str(DEFAULT_INBOX_DIR),
+        help=f"Destination directory for generated files (default: {DEFAULT_INBOX_DIR}).",
+    )
+    parser.add_argument(
+        "-t",
+        "--title",
+        metavar="TITLE",
+        help="Override extracted article title.",
+    )
+    parser.add_argument(
+        "-a",
+        "--author",
+        metavar="NAME",
+        help="Override extracted article author.",
+    )
+    parser.add_argument(
+        "--no-kepub",
+        action="store_true",
+        help="Disable automatic KEPUB conversion; output standard .epub instead of .kepub.epub.",
+    )
+    parser.add_argument(
+        "--archive",
+        nargs="?",
+        const=30,
+        type=int,
+        metavar="DAYS",
+        help="Archive files in inbox older than DAYS (default: 30 days) to ~/Articles/Archive.",
+    )
+
+    args = parser.parse_args()
+
+    out_dir = Path(args.dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.archive is not None:
+        archive_dir = DEFAULT_ARCHIVE_DIR
+        archive_inbox(out_dir, archive_dir, older_than_days=args.archive)
+        if not args.input:
+            return
+
+    if not args.input:
+        parser.print_help()
+        return
+
+    input_str = args.input.strip()
+
+    if input_str == "-" or (os.path.exists(input_str) and os.path.isfile(input_str)):
+        if input_str == "-":
+            raw_text = sys.stdin.read()
+            source_url = "stdin"
+        else:
+            with open(input_str, "r", encoding="utf-8", errors="ignore") as f:
+                raw_text = f.read()
+            source_url = input_str
+
+        title = args.title or "Untitled Document"
+        author = args.author or "Local"
+        date_str = datetime.date.today().isoformat()
+        article_data = {
+            "title": title,
+            "author": author,
+            "date": date_str,
+            "source_url": source_url,
+            "body_html": f"<pre>{html.escape(raw_text)}</pre>" if "<html" not in raw_text.lower() else raw_text,
+        }
+    elif re.match(r"^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$", input_str):
+        print(f"Fetching arXiv paper metadata for ID: {input_str}...")
+        article_data = fetch_arxiv_details(input_str)
+    elif input_str.startswith("http://") or input_str.startswith("https://"):
+        print(f"Fetching article from {input_str}...")
+        article_data = extract_web_article(input_str)
+    else:
+        print(f"Fetching article from URL: https://{input_str}...")
+        article_data = extract_web_article(f"https://{input_str}")
+
+    if args.title:
+        article_data["title"] = args.title
+    if args.author:
+        article_data["author"] = args.author
+
+    date_prefix = article_data.get("date", datetime.date.today().isoformat())[:10]
+    safe_title = sanitize_filename(article_data["title"])
+    base_name = f"{date_prefix}_{safe_title}.epub"
+
+    if args.output:
+        final_target = Path(args.output).expanduser().resolve()
+        final_target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        final_target = out_dir / base_name
+
+    print(f"Generating EPUB: '{article_data['title']}' by {article_data['author']}")
+    create_epub(article_data, final_target)
+
+    if not args.no_kepub:
+        final_file = convert_to_kepub(final_target)
+    else:
+        final_file = final_target
+
+    file_size_kb = final_file.stat().st_size / 1024
+    print(f"\n[SUCCESS] Article saved to inbox:")
+    print(f"  Path: {final_file}")
+    print(f"  Size: {file_size_kb:.1f} KB")
+    print(f"  Title: {article_data['title']}")
+    print(f"  Author: {article_data['author']}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+import evdev
+from evdev import UInput, ecodes as e
+import select
+import sys
+import os
+
+if os.geteuid() != 0:
+    print("This script needs to run as root (sudo) to read/write input devices.")
+    sys.exit(1)
+
+def main():
+    devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+    
+    # Find keyboards (devices with shift keys)
+    keyboards = [d for d in devices if e.KEY_LEFTSHIFT in d.capabilities().get(e.EV_KEY, [])]
+    
+    # Find the TrackPoint exactly
+    trackpoints = [d for d in devices if "TPPS/2 IBM TrackPoint" in d.name]
+    
+    if not trackpoints:
+        print("TrackPoint not found. Ensure it is connected and recognized.")
+        sys.exit(1)
+        
+    tp = trackpoints[0]
+        
+    print(f"Listening for Shift on: {[k.name for k in keyboards]}")
+    print(f"Intercepting and Remapping: {tp.name} at {tp.path}")
+    
+    cap = {}
+    for ev_type, ev_codes in tp.capabilities().items():
+        if ev_type == e.EV_SYN:
+            continue
+        cap[ev_type] = list(ev_codes)
+        
+    # Ensure BTN_RIGHT is available in capabilities just in case
+    if e.BTN_RIGHT not in cap.get(e.EV_KEY, []):
+        if e.EV_KEY not in cap:
+            cap[e.EV_KEY] = []
+        cap[e.EV_KEY].append(e.BTN_RIGHT)
+
+    # Create UInput with the EXACT same properties as the TrackPoint.
+    ui = UInput(
+        events=cap, 
+        name=tp.name, 
+        vendor=tp.info.vendor, 
+        product=tp.info.product, 
+        version=tp.info.version, 
+        bustype=tp.info.bustype,
+        input_props=tp.input_props()
+    )
+    
+    # Create a SECOND virtual device strictly for injecting keyboard macros (like Paste)
+    # This ensures we don't confuse Wayland by adding keyboard keys to a pointing stick!
+    kbd_cap = {
+        e.EV_KEY: [e.KEY_LEFTSHIFT, e.KEY_INSERT]
+    }
+    ui_kbd = UInput(events=kbd_cap, name="TrackPoint Macro Keyboard")
+    
+    try:
+        tp.grab()
+    except IOError:
+        print(f"Warning: Could not grab {tp.name}. Another program might have exclusive access.")
+        sys.exit(1)
+            
+    remapped_button_pressed = False
+        
+    try:
+        while True:
+            # Wait for events only from the TrackPoint
+            r, _, _ = select.select([tp], [], [])
+            for mouse in r:
+                for event in mouse.read():
+                    
+                    # Intercept Left Click for Shift+Click -> Right Click
+                    if event.type == e.EV_KEY and event.code == e.BTN_LEFT:
+                        if event.value == 1: # Key down
+                            shift_pressed = False
+                            for k in keyboards:
+                                try:
+                                    active = k.active_keys()
+                                    if e.KEY_LEFTSHIFT in active or e.KEY_RIGHTSHIFT in active:
+                                        shift_pressed = True
+                                        break
+                                except IOError:
+                                    pass
+                                    
+                            if shift_pressed:
+                                ui.write(e.EV_KEY, e.BTN_RIGHT, 1)
+                                remapped_button_pressed = True
+                            else:
+                                ui.write(e.EV_KEY, e.BTN_LEFT, 1)
+                                remapped_button_pressed = False
+                                
+                        elif event.value == 0: # Key up
+                            if remapped_button_pressed:
+                                ui.write(e.EV_KEY, e.BTN_RIGHT, 0)
+                                remapped_button_pressed = False
+                            else:
+                                ui.write(e.EV_KEY, e.BTN_LEFT, 0)
+                    
+                    # Intercept Middle Click to act as Universal Paste (Shift+Insert)
+                    elif event.type == e.EV_KEY and event.code == e.BTN_MIDDLE:
+                        if event.value == 1:
+                            ui_kbd.write(e.EV_KEY, e.KEY_LEFTSHIFT, 1)
+                            ui_kbd.write(e.EV_KEY, e.KEY_INSERT, 1)
+                            ui_kbd.syn()
+                        elif event.value == 0:
+                            ui_kbd.write(e.EV_KEY, e.KEY_INSERT, 0)
+                            ui_kbd.write(e.EV_KEY, e.KEY_LEFTSHIFT, 0)
+                            ui_kbd.syn()
+                            
+                    else:
+                        # Forward all other mouse/trackpoint events exactly as they are (movement)
+                        ui.write(event.type, event.code, event.value)
+                        
+                    # Sync virtual device after each event batch
+                    if event.type == e.EV_SYN:
+                        ui.syn()
+                        
+    except KeyboardInterrupt:
+        print("\nExiting...")
+    finally:
+        # Cleanup
+        try:
+            tp.ungrab()
+        except IOError:
+            pass
+        ui.close()
+        ui_kbd.close()
+
+if __name__ == '__main__':
+    main()

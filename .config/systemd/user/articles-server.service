@@ -1,0 +1,13 @@
+[Unit]
+Description=Articles WebDAV and OPDS Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/denial/.local/bin/articles-server
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
