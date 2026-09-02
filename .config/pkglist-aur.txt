@@ -1,7 +1,6 @@
 bibata-cursor-theme-bin
 codelldb-bin
 floorp-bin
-herdr-bin
 ibm-fonts
 kaggle-api
 maplemononl-ttf
