@@ -80,7 +80,7 @@ lazydocker
 lazygit
 less
 libappindicator
-libfprint-git
+libfprint
 libpulse
 libqalculate
 libva-intel-driver
