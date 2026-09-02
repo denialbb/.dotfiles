@@ -1,0 +1,13 @@
+[Unit]
+Description=Inhibit systemd-logind lid switch suspend (turn off screen only)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/systemd-inhibit --what=handle-lid-switch --who=Omarchy --why="Prevent suspend on lid close, screen off handled by compositor" sleep infinity
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

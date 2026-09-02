@@ -1,3 +1,8 @@
 [tools]
+codex = "latest"
+gemini = { version = "latest", allow_builds = ["@github/keytar", "node-pty"] }
 go = "latest"
-node = "25.1.0"
+node = "26.8.1"
+opencode = "latest"
+pi = "latest"
+python = "latest"
