@@ -180,6 +180,13 @@ if command -v mise &>/dev/null && [ -f "$HOME/.config/mise/config.toml" ]; then
         uv tool install kaggle >/dev/null 2>&1 || true
         log_ok "CLI tools restored via uv (kaggle)."
     fi
+    if command -v fish &>/dev/null && [ -f "$HOME/.config/fish/fish_plugins" ]; then
+        if ! fish -c "type -q fisher" 2>/dev/null; then
+            fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher" >/dev/null 2>&1 || true
+        fi
+        fish -c "fisher update" >/dev/null 2>&1 || true
+        log_ok "Fish plugins synchronized via Fisher."
+    fi
 else
     log_info "Mise not configured or config missing, skipping."
 fi
@@ -217,14 +224,13 @@ if [ "$HAS_GUM" -eq 1 ]; then
         --border-foreground 212 \
         --padding "1 2" \
         --margin "1 0" \
-        "$(echo -e "${CLR_GREEN}${CLR_BOLD}★ Omarchy Bootstrap Complete! ★${CLR_RESET}\n\n${CLR_CYAN}Next Steps:${CLR_RESET}\n1. Run: ${CLR_PURPLE}omarchy theme set <theme-name>${CLR_RESET}\n2. Start Fish shell & run: ${CLR_PURPLE}fisher update${CLR_RESET}\n3. Restart or log out to finalize user session.")"
+        "$(echo -e "${CLR_GREEN}${CLR_BOLD}★ Omarchy Bootstrap Complete! ★${CLR_RESET}\n\n${CLR_CYAN}Next Steps:${CLR_RESET}\n1. Run: ${CLR_PURPLE}omarchy theme set <theme-name>${CLR_RESET}\n2. Restart or log out to finalize user session.")"
 else
     echo -e "${CLR_GREEN}${CLR_BOLD}========================================================================${CLR_RESET}"
     echo -e "${CLR_GREEN}${CLR_BOLD}  ★ Omarchy Bootstrap Complete! ★${CLR_RESET}"
     echo -e "${CLR_CYAN}  Next Steps:${CLR_RESET}"
     echo -e "    1. Run: ${CLR_PURPLE}omarchy theme set <theme-name>${CLR_RESET}"
-    echo -e "    2. Start Fish shell & run: ${CLR_PURPLE}fisher update${CLR_RESET}"
-    echo -e "    3. Restart or log out to finalize user session."
+    echo -e "    2. Restart or log out to finalize user session."
     echo -e "${CLR_GREEN}${CLR_BOLD}========================================================================${CLR_RESET}"
 fi
 
