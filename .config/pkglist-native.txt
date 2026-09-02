@@ -101,7 +101,7 @@ mako
 man-db
 mariadb-libs
 mesa-utils
-mise
+mise-bin
 mpv
 nautilus
 nautilus-python
@@ -163,7 +163,7 @@ tree-sitter-cli
 ttf-ibm-plex
 ttf-ibmplex-mono-nerd
 ttf-iosevka-nerd
-ttf-jetbrains-mono-nerd
+ttf-jetbrains-mono-nerd-basic
 ttf-nerd-fonts-symbols
 ttf-nerd-fonts-symbols-mono
 ttf-noto-nerd
