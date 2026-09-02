@@ -1,52 +1,311 @@
-feeds:
-  - url: https://dropbox.tech/feed
-    name: DropBox
-  - url: https://snyk.io/blog/feed
-    name: Snyk
-    tags:
-      - ai
-      - tech
-  - url: https://feeds.arstechnica.com/arstechnica/
-    name: Arstechnica
-    tags:
-      - tech
-  - url: http://rss.slashdot.org/Slashdot/slashdot
-    name: Slashdot
-    tags:
-      - tech
-  - url: http://news.mit.edu/rss/topic/artificial-intelligence2
-    name: MIT AI
-    tags:
-      - tech
-      - ai
-  - url: https://www.youtube.com/feeds/videos.xml?channel_id=UCcIXc5mJsHVYTZR1maL5l9w
-    name: YT
-    tags:
-      - tech
-  - url: https://openai.com/blog/rss.xml
-    name: OpenAI
-    tags:
-      - tech
-      - ai
-  - url: http://googleresearch.blogspot.com/atom.xml
-    name: Google Research
-    tags:
-      - tech
-  - url: http://nautil.us/rss/all
-    name: Nautilus
-    tags:
-      - science
-  - url: http://www.nature.com/nature/current_issue/rss
-    name: Nature
-    tags:
-      - science
+configpath: /home/denial/.config/nom/config.yml
+version: ""
 
-showread: false
-autoread: false
+# --- Openers (triggered when pressing 'o' in nom) ---
+openers:
+    - regex: ".*"
+      cmd: "/home/denial/.local/bin/article-read %s"
+      takeover: false
+
+
+
+feeds:
+    # =========================================================================
+    # --- AI Papers & Preprints ---
+    # =========================================================================
+    - url: http://export.arxiv.org/rss/cs.AI
+      name: arXiv cs.AI
+      tags:
+        - ai
+        - papers
+    - url: http://export.arxiv.org/rss/cs.CL
+      name: arXiv cs.CL (NLP)
+      tags:
+        - ai
+        - papers
+        - nlp
+    - url: http://export.arxiv.org/rss/cs.LG
+      name: arXiv cs.LG (ML)
+      tags:
+        - ai
+        - papers
+        - ml
+    - url: http://export.arxiv.org/rss/cs.CV
+      name: arXiv cs.CV (Vision)
+      tags:
+        - ai
+        - papers
+        - cv
+
+    # =========================================================================
+    # --- AI Labs & Research Teams ---
+    # =========================================================================
+    - url: https://huggingface.co/blog/feed.xml
+      name: Hugging Face Blog
+      tags:
+        - ai
+        - ml
+        - open-source
+    - url: https://deepmind.google/blog/rss.xml
+      name: Google DeepMind
+      tags:
+        - ai
+        - research
+    - url: https://research.google/blog/rss/
+      name: Google Research
+      tags:
+        - ai
+        - tech
+        - research
+    - url: https://openai.com/news/rss.xml
+      name: OpenAI News
+      tags:
+        - ai
+        - tech
+    - url: https://engineering.fb.com/category/ai-research/feed/
+      name: Meta AI Research
+      tags:
+        - ai
+        - tech
+        - research
+    - url: http://news.mit.edu/rss/topic/artificial-intelligence2
+      name: MIT AI News
+      tags:
+        - ai
+        - tech
+        - science
+    - url: https://bair.berkeley.edu/blog/feed.xml
+      name: Berkeley AI (BAIR)
+      tags:
+        - ai
+        - research
+
+    # =========================================================================
+    # --- Tech, AI, Machine Learning & Programming Thinkers ---
+    # =========================================================================
+    - url: https://karpathy.github.io/feed.xml
+      name: Andrej Karpathy
+      tags:
+        - ai
+        - ml
+        - tech
+        - blog
+    - url: https://karpathy.bearblog.dev/feed/
+      name: Andrej Karpathy (Bearblog)
+      tags:
+        - ai
+        - tech
+        - blog
+    - url: https://magazine.sebastianraschka.com/feed
+      name: Ahead of AI (Raschka)
+      tags:
+        - ai
+        - ml
+        - newsletter
+    - url: https://lilianweng.github.io/index.xml
+      name: Lil'Log (Lilian Weng)
+      tags:
+        - ai
+        - ml
+        - deep-dive
+    - url: https://www.interconnects.ai/feed
+      name: Interconnects (Nathan Lambert)
+      tags:
+        - ai
+        - rlhf
+        - newsletter
+    - url: https://huyenchip.com/feed.xml
+      name: Chip Huyen
+      tags:
+        - ai
+        - ml
+        - systems
+    - url: https://eugeneyan.com/rss/
+      name: Eugene Yan
+      tags:
+        - ai
+        - ml
+        - systems
+    - url: https://simonwillison.net/atom/everything/
+      name: Simon Willison
+      tags:
+        - ai
+        - tech
+        - blog
+    - url: https://www.latent.space/feed
+      name: Latent Space (swyx & Alessio)
+      tags:
+        - ai
+        - tech
+        - podcast
+    - url: https://swyx.io/rss.xml
+      name: swyx.io
+      tags:
+        - tech
+        - ai
+        - blog
+    - url: https://notes.eatonphil.com/rss.xml
+      name: Phil Eaton (eatonphil)
+      tags:
+        - tech
+        - databases
+        - systems
+    - url: https://importai.substack.com/feed
+      name: Import AI (Jack Clark)
+      tags:
+        - ai
+        - newsletter
+    - url: https://lastweekin.ai/feed
+      name: Last Week in AI
+      tags:
+        - ai
+        - news
+        - weekly
+    - url: https://thegradientpub.substack.com/feed
+      name: The Gradient
+      tags:
+        - ai
+        - essays
+
+    # =========================================================================
+    # --- Security & Technical Zines ---
+    # =========================================================================
+    - url: https://www.2600.com/rss.xml
+      name: 2600 The Hacker Quarterly
+      tags:
+        - security
+        - hacking
+        - zine
+        - tech
+    - url: https://mastodon.social/@2600.rss
+      name: 2600 Updates (Mastodon)
+      tags:
+        - security
+        - news
+    - url: https://pagedout.institute/rss.xml
+      name: Paged Out!
+      tags:
+        - security
+        - tech
+        - zine
+    - url: http://localhost:8080/phrack.xml
+      name: Phrack Magazine
+      tags:
+        - security
+        - hacking
+        - zine
+
+    # =========================================================================
+    # --- Politics and Leftist / Progressive ---
+    # =========================================================================
+    - url: https://jacobin.com/feed
+      name: Jacobin
+      tags:
+        - politics
+        - leftist
+    - url: https://www.dailykos.com/blogs/main.rss
+      name: Daily Kos
+      tags:
+        - politics
+        - progressive
+    - url: https://www.thenation.com/feed/
+      name: The Nation
+      tags:
+        - politics
+        - progressive
+    - url: https://robertreich.substack.com/feed
+      name: Robert Reich
+      tags:
+        - politics
+        - economics
+        - progressive
+    - url: https://zeteo.com/feed
+      name: Zeteo (Mehdi Hasan)
+      tags:
+        - politics
+        - news
+        - progressive
+    - url: https://www.democracynow.org/democracynow.rss
+      name: Democracy Now!
+      tags:
+        - politics
+        - news
+        - progressive
+    - url: https://www.laprogressive.com/.rss/full/
+      name: LA Progressive
+      tags:
+        - politics
+        - progressive
+    - url: https://www.eschatonblog.com/feeds/posts/default
+      name: Eschaton (Atrios)
+      tags:
+        - politics
+        - progressive
+    - url: https://carlbeijer.substack.com/feed
+      name: Carl Beijer
+      tags:
+        - politics
+        - leftist
+        - essays
+    - url: https://graceblakeley.substack.com/feed
+      name: Grace Blakeley
+      tags:
+        - politics
+        - economics
+        - leftist
+    - url: https://www.liberalcurrents.com/feed/
+      name: Liberal Currents
+      tags:
+        - politics
+        - essays
+    - url: https://www.alternet.org/feeds/feed.rss
+      name: Alternet
+      tags:
+        - politics
+        - news
+        - progressive
+
+    # =========================================================================
+    # --- Tech & Science General ---
+    # =========================================================================
+    - url: https://feeds.arstechnica.com/arstechnica/index
+      name: Ars Technica
+      tags:
+        - tech
+        - news
+    - url: https://dropbox.tech/feed
+      name: DropBox Tech
+      tags:
+        - tech
+    - url: https://snyk.io/blog/feed
+      name: Snyk
+      tags:
+        - tech
+        - security
+    - url: http://rss.slashdot.org/Slashdot/slashdot
+      name: Slashdot
+      tags:
+        - tech
+    - url: http://nautil.us/rss/all
+      name: Nautilus
+      tags:
+        - science
+    - url: http://www.nature.com/nature/current_issue/rss
+      name: Nature
+      tags:
+        - science
+
+database: nom.db
+ordering: asc
+filtering:
+    defaultIncludeFeedName: false
+theme:
+    glamour: /home/denial/.config/glow/matrix.json
+    titleColor: "62"
+    titleColorFg: "231"
+    filterColor: "62"
+    selectedItemColor: "170"
+    readIcon: ✓
+http:
+    mintls: TLS 1.2
 refreshinterval: 5
-etueuththeme:
-  glamour: dark
-  titleColor: "62"
-  titleColorFg: "231"
-  selectedItemColor: "170"
-  filterColor: "#555555"

@@ -54,3 +54,7 @@ else
         mise activate fish | source
     end
 end
+
+
+# Added by Antigravity CLI installer
+set -gx PATH "/home/denial/.local/bin" $PATH

@@ -1,0 +1,12 @@
+[Unit]
+Description=Voxtype Daemon
+After=pipewire.service
+
+[Service]
+ExecStart=/usr/local/bin/voxtype
+Restart=always
+RestartSec=2
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=default.target

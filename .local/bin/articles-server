@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""
+Lightweight WebDAV and OPDS server for ~/Articles/Inbox.
+Provides:
+  - Full WebDAV endpoint on /
+  - OPDS 1.2 catalog feed on /opds
+"""
+
+import argparse
+import logging
+import mimetypes
+import os
+import signal
+import sys
+import urllib.parse
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+
+# Ensure dependencies in dedicated venv can be imported if running under system python
+VENV_PATH = os.path.expanduser("~/.local/share/articles-server/venv")
+VENV_PYTHON = os.path.join(VENV_PATH, "bin", "python")
+
+if os.path.exists(VENV_PYTHON) and sys.executable != VENV_PYTHON:
+    try:
+        import wsgidav  # noqa: F401
+        import cheroot  # noqa: F401
+    except ImportError:
+        os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+
+try:
+    from cheroot import wsgi
+    from wsgidav.wsgidav_app import WsgiDAVApp
+except ImportError as err:
+    sys.stderr.write(
+        f"Error: Missing required packages ({err}). Please install wsgidav and cheroot.\n"
+    )
+    sys.exit(1)
+
+MIME_OVERRIDES = {
+    ".epub": "application/epub+zip",
+    ".kepub.epub": "application/epub+zip",
+    ".pdf": "application/pdf",
+    ".mobi": "application/x-mobipocket-ebook",
+    ".azw": "application/vnd.amazon.ebook",
+    ".azw3": "application/vnd.amazon.ebook",
+    ".cbz": "application/vnd.comicbook+zip",
+    ".cbr": "application/vnd.comicbook-rar",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".fb2": "application/x-fictionbook+xml",
+}
+
+
+def get_mime_type(filename: str) -> str:
+    lower = filename.lower()
+    for ext, mime in MIME_OVERRIDES.items():
+        if lower.endswith(ext):
+            return mime
+    guess, _ = mimetypes.guess_type(filename)
+    return guess or "application/octet-stream"
+
+
+def generate_opds_xml(directory: str, title_text: str = "Articles Inbox", base_url: str = "") -> bytes:
+    feed = ET.Element(
+        "feed",
+        {
+            "xmlns": "http://www.w3.org/2005/Atom",
+            "xmlns:dc": "http://purl.org/dc/elements/1.1/",
+            "xmlns:opds": "http://opds-spec.org/2010/catalog",
+        },
+    )
+
+    feed_id = ET.SubElement(feed, "id")
+    feed_id.text = "urn:articles:inbox:feed"
+
+    feed_title = ET.SubElement(feed, "title")
+    feed_title.text = title_text
+
+    updated = ET.SubElement(feed, "updated")
+    updated.text = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    author = ET.SubElement(feed, "author")
+    author_name = ET.SubElement(author, "name")
+    author_name.text = "Articles Server"
+
+    ET.SubElement(
+        feed,
+        "link",
+        {
+            "rel": "self",
+            "href": f"{base_url}/opds",
+            "type": "application/atom+xml;profile=opds-catalog;kind=acquisition",
+        },
+    )
+    ET.SubElement(
+        feed,
+        "link",
+        {
+            "rel": "start",
+            "href": f"{base_url}/opds",
+            "type": "application/atom+xml;profile=opds-catalog;kind=acquisition",
+        },
+    )
+
+    if os.path.exists(directory):
+        entries = []
+        for root, dirs, files in os.walk(directory):
+            # Skip hidden directories
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for fname in files:
+                if fname.startswith("."):
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    stat = os.stat(fpath)
+                    rel_path = os.path.relpath(fpath, directory)
+                    entries.append((stat.st_mtime, rel_path, fname, stat.st_size))
+                except OSError:
+                    continue
+
+        # Sort newest first
+        entries.sort(key=lambda x: x[0], reverse=True)
+
+        for mtime, rel_path, fname, size in entries:
+            entry = ET.SubElement(feed, "entry")
+
+            # Clean display title
+            clean_title = fname
+            if fname.lower().endswith(".kepub.epub"):
+                clean_title = fname[:-11]
+            elif "." in fname:
+                clean_title = fname.rsplit(".", 1)[0]
+            clean_title = clean_title.replace("_", " ")
+
+            entry_title = ET.SubElement(entry, "title")
+            entry_title.text = clean_title
+
+            entry_id = ET.SubElement(entry, "id")
+            entry_id.text = f"urn:articles:inbox:{urllib.parse.quote(rel_path)}"
+
+            entry_updated = ET.SubElement(entry, "updated")
+            entry_updated.text = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            mime_type = get_mime_type(fname)
+            size_kb = size / 1024
+            size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
+
+            entry_summary = ET.SubElement(entry, "summary")
+            entry_summary.text = f"{fname} ({size_str})"
+
+            entry_content = ET.SubElement(entry, "content", {"type": "text"})
+            entry_content.text = fname
+
+            encoded_path = "/" + "/".join(urllib.parse.quote(part) for part in rel_path.split(os.sep))
+            ET.SubElement(
+                entry,
+                "link",
+                {
+                    "rel": "http://opds-spec.org/acquisition",
+                    "href": encoded_path,
+                    "type": mime_type,
+                    "length": str(size),
+                },
+            )
+
+    return b'<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(feed, encoding="utf-8")
+
+
+class ArticlesCombinedApp:
+    def __init__(self, inbox_dir: str, title: str = "Articles Inbox"):
+        self.inbox_dir = os.path.abspath(inbox_dir)
+        self.title = title
+        dav_config = {
+            "provider_mapping": {"/": self.inbox_dir},
+            "http_authenticator": {
+                "domain": "Articles",
+                "accept_anonymous": True,
+            },
+            "simple_dc": {"user_mapping": {"*": True}},
+            "dir_browser": {"enable": True},
+            "verbose": 1,
+            "logging": {
+                "enable": False,
+            },
+        }
+        self.dav_app = WsgiDAVApp(dav_config)
+
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        if path in ("/opds", "/opds/", "/opds.xml", "/opds/index.xml"):
+            method = environ.get("REQUEST_METHOD", "GET")
+            if method in ("GET", "HEAD"):
+                xml_data = generate_opds_xml(self.inbox_dir, self.title)
+                headers = [
+                    ("Content-Type", "application/atom+xml;profile=opds-catalog;kind=acquisition;charset=utf-8"),
+                    ("Content-Length", str(len(xml_data))),
+                    ("Cache-Control", "no-cache, no-store, must-revalidate"),
+                    ("Access-Control-Allow-Origin", "*"),
+                ]
+                start_response("200 OK", headers)
+                if method == "HEAD":
+                    return [b""]
+                return [xml_data]
+            elif method == "OPTIONS":
+                headers = [
+                    ("Allow", "GET, HEAD, OPTIONS"),
+                    ("Access-Control-Allow-Origin", "*"),
+                    ("Content-Length", "0"),
+                ]
+                start_response("200 OK", headers)
+                return [b""]
+            else:
+                start_response("405 Method Not Allowed", [("Content-Type", "text/plain")])
+                return [b"Method Not Allowed"]
+
+        return self.dav_app(environ, start_response)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Articles WebDAV & OPDS server")
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("ARTICLES_SERVER_HOST", "0.0.0.0"),
+        help="Host interface to bind to (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("ARTICLES_SERVER_PORT", 8080)),
+        help="Port to listen on (default: 8080)",
+    )
+    parser.add_argument(
+        "--dir",
+        default=os.environ.get("ARTICLES_DIR", os.path.expanduser("~/Articles/Inbox")),
+        help="Articles inbox directory path (default: ~/Articles/Inbox)",
+    )
+    parser.add_argument(
+        "--title",
+        default="Articles Inbox",
+        help="Feed title for OPDS catalog",
+    )
+    args = parser.parse_args()
+
+    inbox_dir = os.path.abspath(os.path.expanduser(args.dir))
+    os.makedirs(inbox_dir, exist_ok=True)
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger("articles-server")
+    logger.info("Starting Articles Server")
+    logger.info("Serving directory: %s", inbox_dir)
+    logger.info("WebDAV endpoint: http://%s:%d/", args.host, args.port)
+    logger.info("OPDS feed:       http://%s:%d/opds", args.host, args.port)
+
+    app = ArticlesCombinedApp(inbox_dir=inbox_dir, title=args.title)
+    server = wsgi.Server((args.host, args.port), app, numthreads=10)
+
+    def shutdown(signum, frame):
+        logger.info("Received termination signal, shutting down...")
+        server.stop()
+
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        server.stop()
+
+
+if __name__ == "__main__":
+    main()

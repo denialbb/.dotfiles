@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+# Default to no adaptation
+ADAPT=false
+WALLPAPERS_DIR="/home/denial/Pictures/wallpapers"
+ADAPT_SCRIPT="/home/denial/.local/bin/omarchy-adapt-background"
+
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    -a|--adapt) ADAPT=true; shift ;;
+    -n|--no-adapt) ADAPT=false; shift ;;
+    -h|--help)
+      echo "Usage: $(basename "$0") [options]"
+      echo ""
+      echo "Select a wallpaper from ~/Pictures/wallpapers using fzf and set it as background."
+      echo ""
+      echo "Options:"
+      echo "  -a, --adapt      Adapt the selected wallpaper to the current colorscheme by default."
+      echo "  -n, --no-adapt   Set the selected wallpaper as-is by default (default)."
+      echo "  -h, --help       Show this help message."
+      echo ""
+      echo "Interactive Controls in fzf:"
+      echo "  Enter            Set wallpaper using the default mode."
+      echo "  Ctrl-A           Toggle adaptation (set with adapt if default is off, or vice versa)."
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -d "$WALLPAPERS_DIR" ]]; then
+  echo "Error: Wallpapers directory does not exist: $WALLPAPERS_DIR" >&2
+  exit 1
+fi
+
+# Change to the wallpapers directory so fzf shows clean relative names
+cd "$WALLPAPERS_DIR" || exit 1
+
+# Prepare header based on default mode
+if [ "$ADAPT" = true ]; then
+  HEADER="Mode: ADAPT TO COLORSCHEME | Press Ctrl-A to set AS-IS"
+else
+  HEADER="Mode: SET AS-IS | Press Ctrl-A to set ADAPTED"
+fi
+
+# Find all image files in the directory
+# Run fzf with expect and preview window
+fzf_output=$(find . -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -printf "%P\n" | \
+  fzf --header="$HEADER" \
+      --prompt="Select wallpaper: " \
+      --border=rounded \
+      --height=80% \
+      --layout=reverse \
+      --info=inline \
+      --preview='bash -c '\''cols=$(( FZF_PREVIEW_COLS - 6 )); lines=$(( FZF_PREVIEW_LINES - 4 )); chafa -f symbols --symbols=sextant --size=${cols}x${lines} "$1"'\'' -- {}' \
+      --preview-window=right:60% \
+      --expect=ctrl-a)
+
+exit_code=$?
+if [[ $exit_code -ne 0 && $exit_code -ne 1 ]]; then
+  exit 0
+fi
+
+# Parse fzf output
+key=$(echo "$fzf_output" | head -n 1)
+file=$(echo "$fzf_output" | tail -n +2)
+
+if [[ -z "$file" ]]; then
+  exit 0
+fi
+
+# Resolve full path of selected wallpaper
+selected_wallpaper="$WALLPAPERS_DIR/$file"
+
+# Determine final adaptation mode
+final_adapt="$ADAPT"
+if [[ "$key" == "ctrl-a" ]]; then
+  if [[ "$ADAPT" == "true" ]]; then
+    final_adapt=false
+  else
+    final_adapt=true
+  fi
+fi
+
+if [ "$final_adapt" = true ]; then
+  echo "Adapting and setting wallpaper: $file"
+  if [[ -x "$ADAPT_SCRIPT" ]]; then
+    "$ADAPT_SCRIPT" "$selected_wallpaper"
+  else
+    echo "Error: Adapt script not found or not executable at $ADAPT_SCRIPT" >&2
+    exit 1
+  fi
+else
+  echo "Setting wallpaper as-is: $file"
+  omarchy theme bg set "$selected_wallpaper"
+fi
