@@ -4,7 +4,7 @@ command = /usr/bin/fish
 theme = "Gruvbox Dark"
 background = #222222
 background-opacity = 0.7
-font-family = "Agave Nerd Font Mono"
+font-family = "Monaco Nerd Font Mono"
 font-size = 15
 font-feature = -liga
 

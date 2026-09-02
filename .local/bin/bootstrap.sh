@@ -176,6 +176,10 @@ if command -v mise &>/dev/null && [ -f "$HOME/.config/mise/config.toml" ]; then
     log_info "Installing runtimes declared in ~/.config/mise/config.toml..."
     mise install -y || true
     log_ok "Mise runtimes restored."
+    if command -v uv &>/dev/null; then
+        uv tool install kaggle >/dev/null 2>&1 || true
+        log_ok "CLI tools restored via uv (kaggle)."
+    fi
 else
     log_info "Mise not configured or config missing, skipping."
 fi

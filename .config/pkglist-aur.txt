@@ -2,7 +2,6 @@ bibata-cursor-theme-bin
 codelldb-bin
 floorp-bin
 ibm-fonts
-kaggle-api
 maplemononl-ttf
 nom
 pam_usb
