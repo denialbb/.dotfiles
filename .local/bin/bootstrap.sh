@@ -190,6 +190,7 @@ USER_SERVICES=(
     "swayosd-server.service"
     "elephant.service"
     "omarchy-recover-internal-monitor.service"
+    "omarchy-lid-inhibit.service"
 )
 
 for svc in "${USER_SERVICES[@]}"; do
