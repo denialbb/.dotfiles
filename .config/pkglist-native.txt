@@ -53,6 +53,7 @@ gemini-cli
 git
 git-delta
 github-cli
+glow
 gnome-calculator
 gnome-disk-utility
 gnome-keyring
