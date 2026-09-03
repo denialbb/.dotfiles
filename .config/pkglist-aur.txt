@@ -1,3 +1,4 @@
+antigravity-cli
 bibata-cursor-theme-bin
 codelldb-bin
 floorp-bin
