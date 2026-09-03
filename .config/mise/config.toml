@@ -1,6 +1,8 @@
 [tools]
+"aqua:modem-dev/hunk" = "latest"
 codex = "latest"
 gemini = { version = "latest", allow_builds = ["@github/keytar", "node-pty"] }
+gh = "latest"
 go = "latest"
 node = "26.8.1"
 opencode = "latest"

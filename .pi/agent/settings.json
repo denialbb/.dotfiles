@@ -1,0 +1,33 @@
+{
+  "theme": "omarchy-system",
+  "lastChangelogVersion": "0.84.4",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "glm-5.3",
+  "images": {
+    "blockImages": false
+  },
+  "editorPaddingX": 1,
+  "terminal": {
+    "clearOnShrink": true,
+    "showTerminalProgress": true
+  },
+  "followUpMode": "all",
+  "steeringMode": "all",
+  "fullscreenExitOutput": "resume-hint",
+  "tuiMode": "regular",
+  "treeFilterMode": "default",
+  "doubleEscapeAction": "tree",
+  "enableInstallTelemetry": false,
+  "quietStartup": true,
+  "showCacheMissNotices": true,
+  "packages": [
+    "npm:context-mode",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:pi-lens",
+    "npm:pi-web-access",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@dietrichgebert/ponytail",
+    "npm:@ff-labs/pi-fff",
+    "npm:pi-powerline-footer"
+  ]
+}

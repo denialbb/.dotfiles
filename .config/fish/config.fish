@@ -35,9 +35,11 @@ if status is-interactive
         end
     end 2>/dev/null
 
-    # Tmux auto-attach if not already in a pane
+    # Tmux auto-attach if not already in a pane (OMARCHY_NO_TMUX=1 opts out,
+    # e.g. herdr outside tmux - the var is inherited by child shells)
     if status is-interactive
         and not set -q TMUX
+        and not set -q OMARCHY_NO_TMUX
         and command -q tmux
         exec tmux new -A -s main
     end

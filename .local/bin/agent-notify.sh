@@ -114,16 +114,20 @@ resolve_pane() {
     tmux display-message -p '#{pane_id}' 2>/dev/null || echo ""
 }
 
-# 1. Update tmux-agent-indicator state
-INDICATOR_SCRIPT="$HOME/.tmux/plugins/tmux-agent-indicator/scripts/agent-state.sh"
-if [ -f "$INDICATOR_SCRIPT" ]; then
+# 1. Update tmux-agent-indicator state (optional - skip silently if not installed)
+INDICATOR_SCRIPT=""
+for candidate in "$HOME/.config/tmux/plugins/tmux-agent-indicator/scripts/agent-state.sh" "$HOME/.tmux/plugins/tmux-agent-indicator/scripts/agent-state.sh"; do
+    if [ -f "$candidate" ]; then
+        INDICATOR_SCRIPT="$candidate"
+        break
+    fi
+done
+if [ -n "$INDICATOR_SCRIPT" ]; then
     # Always reset running state first if transitioning to running to trigger animation
     if [ "$STATE" = "running" ]; then
         bash "$INDICATOR_SCRIPT" --agent "$AGENT" --state off >/dev/null 2>&1 || true
     fi
     bash "$INDICATOR_SCRIPT" --agent "$AGENT" --state "$STATE" >/dev/null 2>&1 || true
-else
-    echo "Warning: tmux-agent-indicator script not found at $INDICATOR_SCRIPT" >&2
 fi
 
 # 2. Send ntfy.sh notification if state is needs-input (with a 2-second debounce/confirmation check)
