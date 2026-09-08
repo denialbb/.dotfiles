@@ -1,8 +1,8 @@
 {
-  "theme": "omarchy-system",
-  "lastChangelogVersion": "0.84.4",
-  "defaultProvider": "opencode-go",
-  "defaultModel": "glm-5.3",
+  "theme": "omarchy",
+  "lastChangelogVersion": "0.85.1",
+  "defaultProvider": "opencode",
+  "defaultModel": "muse-spark-1.3-contributor-free",
   "images": {
     "blockImages": false
   },
@@ -20,6 +20,20 @@
   "enableInstallTelemetry": false,
   "quietStartup": true,
   "showCacheMissNotices": true,
+  "powerline": {
+    "preset": "default",
+    "disabledSegments": [
+      "path",
+      "thinking",
+      "custom:ponytail"
+    ],
+    "customItems": [
+      {
+        "id": "ponytail",
+        "statusKey": "ponytail"
+      }
+    ]
+  },
   "packages": [
     "npm:context-mode",
     "npm:@juicesharp/rpiv-todo",

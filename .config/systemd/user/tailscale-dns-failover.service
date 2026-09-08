@@ -1,0 +1,6 @@
+[Unit]
+Description=Tailscale DNS/exit-node failover for homebox
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/tailscale-dns-failover

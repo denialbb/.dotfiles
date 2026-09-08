@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Fail over DNS (+ exit node) when the homebox Tailscale server is down.
+# - homebox is both the tailnet DNS resolver and the exit node, so when it
+#   goes down this box loses DNS and internet. This script detects that and
+#   falls back to local DNS (wlan0: 8.8.8.8/1.1.1.1) + direct routing.
+# - Restores Tailscale DNS + exit node once homebox is healthy again.
+# - Needs passwordless `tailscale set`: run once
+#     sudo tailscale set --operator="$USER"
+set -u
+HOMEBOX_IP="100.103.137.69"
+STATE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tailscale-dns-failover"
+FAIL_N="$STATE_DIR/fails"; OK_N="$STATE_DIR/oks"; FAILED="$STATE_DIR/failed"
+mkdir -p "$STATE_DIR"
+
+notify() { notify-send "Tailscale failover" "$1" 2>/dev/null || true; echo "$1"; }
+
+ping_ok=0; dns_ok=0
+tailscale ping -c 1 --timeout=2s "$HOMEBOX_IP" >/dev/null 2>&1 && ping_ok=1
+dig +short +time=2 +tries=1 "@$HOMEBOX_IP" google.com >/dev/null 2>&1 && dns_ok=1
+
+fails=$(cat "$FAIL_N" 2>/dev/null || echo 0); oks=$(cat "$OK_N" 2>/dev/null || echo 0)
+
+apply() { # $1 = full | dnsonly ; returns 0 on success
+  if [ "$1" = full ]; then
+    tailscale set --accept-dns=false --exit-node= || return 1
+    notify "homebox down: direct routing + local DNS"
+  else
+    tailscale set --accept-dns=false || return 1
+    notify "homebox DNS down: local DNS (exit node kept)"
+  fi
+  echo "$1" > "$FAILED"
+}
+
+if [ "$ping_ok" = 1 ] && [ "$dns_ok" = 1 ]; then
+  echo 0 > "$FAIL_N"; oks=$((oks + 1)); echo "$oks" > "$OK_N"
+  if [ -f "$FAILED" ] && [ "$oks" -ge 2 ]; then
+    if tailscale set --accept-dns=true --exit-node="$HOMEBOX_IP"; then
+      rm -f "$FAILED" "$OK_N"; notify "homebox back: Tailscale DNS + exit node restored"
+    else echo "restore failed (operator set? sudo tailscale set --operator=\$USER)"; exit 1; fi
+  fi
+  exit 0
+fi
+
+echo 0 > "$OK_N"; fails=$((fails + 1)); echo "$fails" > "$FAIL_N"
+[ "$fails" -lt 2 ] && exit 0  # 2-strike hysteresis against single packet loss
+[ "$ping_ok" = 1 ] && mode=dnsonly || mode=full
+if [ ! -f "$FAILED" ]; then
+  apply "$mode" || { echo "failover failed (operator set? sudo tailscale set --operator=\$USER)"; exit 1; }
+elif [ "$(cat "$FAILED")" != "$mode" ]; then
+  apply "$mode" || exit 1  # escalate/de-escalate full <-> dnsonly
+fi
