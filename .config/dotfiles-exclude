@@ -1,0 +1,48 @@
+# Tracked copy of $HOME/.dotfiles/info/exclude (which is local-only and never
+# pushed). Fresh clones: restore.sh copies this file there automatically.
+# Manual: cp ~/.config/dotfiles-exclude ~/.dotfiles/info/exclude
+.config/telegram-notify.conf
+.config/agent-notify.conf
+*-token*
+*.pem
+.config/nvim/
+
+# --- data dirs: never dotfiles ---
+Documents/
+Downloads/
+Music/
+Pictures/
+Videos/
+Media/
+Articles/
+Projects/
+Work/
+mnt/
+
+# --- secrets & identity ---
+.ssh/*
+!.ssh/config
+.gnupg/
+.pki/
+.aws/
+*.key
+*credentials*
+*secret*
+.bash_history
+.zsh_history
+.python_history
+.psql_history
+.mysql_history
+
+# --- caches & state ---
+.cache/
+.npm/
+.thumbnails/
+.mozilla/
+.vscode-server/
+.local/share/Trash/
+node_modules/
+__pycache__/
+*.log
+.librewolf/**
+!.librewolf/*/chrome/**

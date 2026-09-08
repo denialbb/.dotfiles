@@ -33,6 +33,7 @@ else
     git clone --bare git@github.com:denialbb/.dotfiles.git "$HOME/.dotfiles"
     /usr/bin/git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" config --local status.showUntrackedFiles no
     /usr/bin/git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" checkout || true
+    cp "$HOME/.config/dotfiles-exclude" "$HOME/.dotfiles/info/exclude" 2>/dev/null || true
     bash "$HOME/.local/bin/bootstrap.sh"
 fi
 echo "== [4/6] pkglist =="
