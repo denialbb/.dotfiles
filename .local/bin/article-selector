@@ -8,14 +8,28 @@ if [ -z "$URL" ]; then
     exit 1
 fi
 
+DB_PATH="$HOME/.config/nom/nom.db"
+ARTICLE_TITLE=""
+if [ -f "$DB_PATH" ] && command -v sqlite3 >/dev/null 2>&1; then
+    ARTICLE_TITLE=$(sqlite3 -cmd ".timeout 2000" "file:$DB_PATH?mode=ro" \
+        "SELECT title FROM items WHERE link = '$URL' LIMIT 1;" 2>/dev/null | tr '\n' ' ' | sed 's/^[ \t]*//;s/[ \t]*$//' || true)
+fi
+
 SHORT_URL="$URL"
 if [ ${#SHORT_URL} -gt 65 ]; then
     SHORT_URL="${SHORT_URL:0:62}..."
 fi
 
-# Print clear menu without emojis
-echo "Article Action:"
-echo "  $SHORT_URL"
+# Print clean menu without emojis
+if [ -n "$ARTICLE_TITLE" ]; then
+    echo "Article:"
+    echo "  $ARTICLE_TITLE"
+    echo "URL:"
+    echo "  $SHORT_URL"
+else
+    echo "Article:"
+    echo "  $SHORT_URL"
+fi
 echo ""
 echo "  [1] Read in Glow"
 echo "  [2] Send EPUB to OPDS / Inbox"

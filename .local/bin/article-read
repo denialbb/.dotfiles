@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# nom opener wrapper: opens interactive article action selector in a floating window / popup (80 cols, 80% height).
-# When takeover is false, nom does NOT exit its alt-screen, so the floating popup/overlay
-# appears directly on top of the visible nom TUI.
+# nom opener wrapper: opens interactive article action selector in a floating window / popup.
+# - Fetches the exact article title from nom's SQLite database to show in the popup title bar.
+# - Dims / fades the background pane while the popup is active so focus is drawn to the popup.
+# - Popup dimensions: 80 columns wide, 80% height.
 
 URL="${1:-}"
 if [ -z "$URL" ]; then
@@ -9,35 +10,76 @@ if [ -z "$URL" ]; then
 fi
 
 SELECTOR="$HOME/.local/bin/article-selector"
+DB_PATH="$HOME/.config/nom/nom.db"
 
-# 1. Inside TMUX: use floating popup directly over the active pane!
+# 1. Extract title from nom's SQLite database
+TITLE=""
+if [ -f "$DB_PATH" ] && command -v sqlite3 >/dev/null 2>&1; then
+    TITLE=$(sqlite3 -cmd ".timeout 2000" "file:$DB_PATH?mode=ro" \
+        "SELECT title FROM items WHERE link = '$URL' LIMIT 1;" 2>/dev/null | tr '\n' ' ' | sed 's/^[ \t]*//;s/[ \t]*$//' || true)
+fi
+
+if [ -z "$TITLE" ]; then
+    # Fallback to sanitized URL basename
+    TITLE=$(basename "$URL" | tr '-' ' ' | tr '_' ' ')
+fi
+
+# Truncate title if too wide for the 80-col popup
+if [ ${#TITLE} -gt 65 ]; then
+    TITLE="${TITLE:0:62}..."
+fi
+POPUP_TITLE=" $TITLE "
+
+# 2. Extract theme colors for popup styling if available
+THEME_COLORS="$HOME/.local/state/omarchy/current/theme/colors.toml"
+POPUP_STYLE=""
+BORDER_STYLE=""
+if [ -f "$THEME_COLORS" ]; then
+    ACCENT=$(grep -m1 '^accent =' "$THEME_COLORS" | cut -d'"' -f2 || true)
+    BG=$(grep -m1 '^lighter_background =' "$THEME_COLORS" | cut -d'"' -f2 || true)
+    FG=$(grep -m1 '^foreground =' "$THEME_COLORS" | cut -d'"' -f2 || true)
+    [ -n "$BG" ] && [ -n "$FG" ] && POPUP_STYLE="bg=$BG,fg=$FG"
+    [ -n "$ACCENT" ] && BORDER_STYLE="fg=$ACCENT"
+fi
+
+# 3. Inside TMUX: dim background pane while popup is active
 if [ -n "${TMUX:-}" ]; then
-    # -E closes popup when command exits
-    # -w 80 sets width to 80 columns
-    # -h 80% sets height to 80%
-    if tmux display-popup -E -w 80 -h 80% -T " Article Actions " "$SELECTOR" "$URL" 2>/dev/null; then
-        exit 0
+    ACTIVE_PANE=$(tmux display-message -p '#{pane_id}' 2>/dev/null || echo "")
+
+    # Dim background pane style
+    if [ -n "$ACTIVE_PANE" ]; then
+        tmux select-pane -t "$ACTIVE_PANE" -P "fg=colour238,dim" 2>/dev/null || true
     fi
-    # Fallback to vertical split if popup unsupported
-    if tmux split-window -h -l 80 "$SELECTOR $URL" 2>/dev/null; then
-        exit 0
+
+    # Build popup args
+    POPUP_ARGS=(-E -w 80 -h 80% -T "$POPUP_TITLE" -b rounded)
+    [ -n "$POPUP_STYLE" ] && POPUP_ARGS+=(-s "$POPUP_STYLE")
+    [ -n "$BORDER_STYLE" ] && POPUP_ARGS+=(-S "$BORDER_STYLE")
+
+    # Display popup
+    tmux display-popup "${POPUP_ARGS[@]}" "$SELECTOR" "$URL" 2>/dev/null || true
+
+    # Restore background pane style immediately upon closing popup
+    if [ -n "$ACTIVE_PANE" ]; then
+        tmux select-pane -t "$ACTIVE_PANE" -P "default" 2>/dev/null || true
     fi
+    exit 0
 fi
 
-# 2. Inside Kitty: launch overlay window directly over the running nom window
+# 4. Inside Kitty: overlay window
 if [ -n "${KITTY_PID:-}" ] || [ -n "${KITTY_WINDOW_ID:-}" ]; then
-    if kitty @ launch --type=overlay --title="Article Actions" "$SELECTOR" "$URL" 2>/dev/null; then
+    if kitty @ launch --type=overlay --title="$POPUP_TITLE" "$SELECTOR" "$URL" 2>/dev/null; then
         exit 0
     fi
 fi
 
-# 3. Inside Ghostty or graphical terminal: launch floating popup terminal
+# 5. Inside Ghostty: floating popup terminal
 if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ] || [ "${TERM:-}" = "xterm-ghostty" ]; then
     if command -v ghostty >/dev/null 2>&1; then
-        ghostty --class=popup-terminal -e "$SELECTOR" "$URL" &
+        ghostty --class=popup-terminal --title="$POPUP_TITLE" -e "$SELECTOR" "$URL" &
         exit 0
     fi
 fi
 
-# 4. Fallback: execute directly
+# 6. Direct execution fallback
 exec "$SELECTOR" "$URL"
