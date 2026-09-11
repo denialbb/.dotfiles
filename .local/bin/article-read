@@ -1,42 +1,46 @@
 #!/usr/bin/env bash
-# nom opener wrapper: opens interactive article action selector in a floating window / popup.
+# nom opener wrapper: opens interactive article action selector in a floating window / popup (80 col wide).
 # Hierarchy:
-# 1. Kitty: launch floating window overlay via kitty remote control
-# 2. Ghostty: floating terminal popup or split
-# 3. Tmux: tmux display-popup (or vertical split fallback)
+# 1. TMUX: floating popup (80 cols) or vertical split fallback
+# 2. Kitty: floating overlay window via remote control
+# 3. Ghostty: floating popup window
 # 4. Fallback: direct terminal execution
 
-URL="$1"
-
+URL="${1:-}"
 if [ -z "$URL" ]; then
     exit 0
 fi
 
 SELECTOR="$HOME/.local/bin/article-selector"
 
-# 1. Inside TMUX: use floating popup! (tmux display-popup -E ...)
+# 1. Inside TMUX: use 80-col floating popup
 if [ -n "${TMUX:-}" ]; then
-    # -E closes popup automatically when command exits
-    # -w 80% -h 75% gives a floating dialog in the center of the terminal
-    tmux display-popup -E -w 85% -h 80% -T " Article Actions " "$SELECTOR" "$URL"
-    exit 0
-fi
-
-# 2. Inside Kitty: use kitty overlay / floating window
-if [ -n "${KITTY_PID:-}" ] || [ -n "${KITTY_WINDOW_ID:-}" ]; then
-    # Try kitty remote control overlay window
-    if kitty @ launch --type=overlay "$SELECTOR" "$URL" 2>/dev/null; then
+    # -E closes popup when command finishes
+    # -w 80 sets exact 80 columns width
+    # -h 65% sets comfortable height
+    if tmux display-popup -E -w 80 -h 65% -T " Article Actions " "$SELECTOR" "$URL" 2>/dev/null; then
+        exit 0
+    fi
+    # Fallback to vertical split if popup unsupported:
+    if tmux split-window -h -l 80 "$SELECTOR $URL" 2>/dev/null; then
         exit 0
     fi
 fi
 
-# 3. Inside Ghostty or generic Wayland/X11
-if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+# 2. Inside Kitty: launch overlay window
+if [ -n "${KITTY_PID:-}" ] || [ -n "${KITTY_WINDOW_ID:-}" ]; then
+    if kitty @ launch --type=overlay --title="Article Actions" "$SELECTOR" "$URL" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
+# 3. Inside Ghostty: launch floating popup terminal
+if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ] || [ "${TERM:-}" = "xterm-ghostty" ]; then
     if command -v ghostty >/dev/null 2>&1; then
         ghostty --class=popup-terminal -e "$SELECTOR" "$URL" &
         exit 0
     fi
 fi
 
-# 4. Fallback: execute directly in current terminal
+# 4. Fallback: direct terminal execution
 exec "$SELECTOR" "$URL"
