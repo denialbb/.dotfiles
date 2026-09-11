@@ -1,0 +1,324 @@
+--- /tmp/pristine/usr/share/omarchy/shell/plugins/lock/Service.qml	2026-09-08 20:30:57.000000000 +0200
++++ /tmp/modified/usr/share/omarchy/shell/plugins/lock/Service.qml	2026-09-12 00:51:35.614330437 +0200
+@@ -22,6 +22,10 @@
+   property bool fingerprintAuthenticating: false
+   property bool passwordPamConfigured: false
+   property bool fingerprintConfigured: false
++  // Local customization (re-apply after omarchy updates): USB hardware-key
++  // unlock. usbKeyPresent = a pam_usb volume for this user is mounted.
++  property bool usbKeyPresent: false
++  property bool usbAuthenticating: false
+   property bool previewVisible: false
+   property string enteredPassword: ""
+   property string pendingPassword: ""
+@@ -35,7 +39,7 @@
+   property bool strandedLockResolved: false
+ 
+   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
++  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || usbAuthenticating
+ 
+   function realScreenCount() {
+     var screens = Quickshell.screens || []
+@@ -107,6 +111,10 @@
+     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+   }
+ 
++  function refreshUsbKeyStatus() {
++    if (!usbCheckProc.running) usbCheckProc.running = true
++  }
++
+   function logEvent(event) {
+     lastEvent = event
+     lastEventAt = new Date().toISOString()
+@@ -120,9 +128,11 @@
+     failedAttempts = 0
+     authenticatingPassword = false
+     fingerprintAuthenticating = false
++    usbAuthenticating = false
+     fingerprintRetryTimer.stop()
+     if (passwordPam.active) passwordPam.abort()
+     if (fingerprintPam.active) fingerprintPam.abort()
++    if (usbPam.active) usbPam.abort()
+   }
+ 
+   function beginLock() {
+@@ -140,6 +150,7 @@
+     Qt.callLater(function() {
+       root.refreshBackground()
+       root.refreshFingerprintStatus()
++      root.refreshUsbKeyStatus()
+     })
+ 
+     return true
+@@ -175,7 +186,14 @@
+ 
+   function submitPassword(value) {
+     var password = String(value || "")
+-    if (!lockRequested || authenticatingPassword || password.length === 0) return
++    if (!lockRequested || authenticatingPassword || usbAuthenticating) return
++
++    if (password.length === 0) {
++      if (root.usbKeyPresent) {
++        root.startUsbAuth()
++      }
++      return
++    }
+ 
+     runWake()
+     pendingPassword = password
+@@ -208,6 +226,7 @@
+ 
+   function startFingerprint() {
+     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
++    if (root.usbKeyPresent) return // USB key takes over: no swipe, no sensor heat
+     if (fingerprintPam.active || fingerprintAuthenticating) return
+ 
+     fingerprintAuthenticating = true
+@@ -227,6 +246,34 @@
+     }
+   }
+ 
++  function startUsbAuth() {
++    if (!lockRequested || !sessionLock.secure || !usbKeyPresent) return
++    if (usbPam.active || usbAuthenticating) return
++
++    runWake()
++    failureMessage = ""
++    usbAuthenticating = true
++    if (!usbPam.start()) {
++      usbAuthenticating = false
++      failedAttempts += 1
++      failureMessage = "Authentication failed (" + failedAttempts + ")"
++      runWake()
++    }
++  }
++
++  function handleUsbFinished(result) {
++    usbAuthenticating = false
++
++    if (!lockRequested) return
++    if (result === PamResult.Success) {
++      finishUnlock()
++    } else {
++      failedAttempts += 1
++      failureMessage = "Authentication failed (" + failedAttempts + ")"
++      runWake()
++    }
++  }
++
+   WlSessionLock {
+     id: sessionLock
+ 
+@@ -271,6 +318,8 @@
+         backgroundPath: root.backgroundPath
+         backgroundVersion: root.backgroundVersion
+         fingerprintConfigured: root.fingerprintConfigured
++        usbKeyPresent: root.usbKeyPresent
++        usbAuthenticating: root.usbAuthenticating
+         authenticatingPassword: root.authenticatingPassword
+         failureMessage: root.failureMessage
+         failedAttempts: root.failedAttempts
+@@ -301,6 +350,8 @@
+       backgroundPath: root.backgroundPath
+       backgroundVersion: root.backgroundVersion
+       fingerprintConfigured: root.fingerprintConfigured
++      usbKeyPresent: root.usbKeyPresent
++      usbAuthenticating: root.usbAuthenticating
+       authenticatingPassword: false
+       failureMessage: ""
+       failedAttempts: 0
+@@ -353,6 +404,33 @@
+     }
+   }
+ 
++  PamContext {
++    id: usbPam
++    config: "omarchy-lock-usb"
++    user: root.userName
++
++    onCompleted: function(result) {
++      root.handleUsbFinished(result)
++    }
++
++    onError: function(error) {
++      root.usbAuthenticating = false
++      root.failedAttempts += 1
++      root.failureMessage = "Authentication failed (" + root.failedAttempts + ")"
++      root.runWake()
++    }
++  }
++
++  // Re-checks the USB key while locked so inserting/removing the key
++  // mid-lock updates the icon and (dis)arms passwordless unlock.
++  Timer {
++    id: usbPollTimer
++    interval: 5000
++    repeat: true
++    running: root.lockRequested
++    onTriggered: root.refreshUsbKeyStatus()
++  }
++
+   Timer {
+     id: fingerprintRetryTimer
+     interval: 250
+@@ -386,6 +464,28 @@
+     }
+   }
+ 
++  onUsbKeyPresentChanged: {
++    if (root.usbKeyPresent) {
++      if (fingerprintPam.active) fingerprintPam.abort()
++      fingerprintAuthenticating = false
++      fingerprintRetryTimer.stop()
++    } else {
++      if (usbPam.active) usbPam.abort()
++      usbAuthenticating = false
++      if (root.lockRequested && root.fingerprintConfigured) root.startFingerprint()
++    }
++  }
++
++  // Presence probe only: mounted pam_usb volume, no pad use (no pad burn).
++  Process {
++    id: usbCheckProc
++    command: ["bash", "-c", "for u in $(grep -o '<volume_uuid>[^<]*' /etc/security/pam_usb.conf 2>/dev/null | sed 's/.*>//'); do findmnt -rn -S UUID=\"$u\" >/dev/null 2>&1 && { echo yes; exit 0; }; done; echo no"]
++    stdout: StdioCollector { id: usbCheckStdout; waitForEnd: true }
++    onExited: {
++      root.usbKeyPresent = String(usbCheckStdout.text || "").trim() === "yes"
++    }
++  }
++
+   Process {
+     id: strandedLockCheckProc
+     command: ["bash", "-c", "omarchy-hyprland-session-locked"]
+@@ -427,7 +527,7 @@
+       // Only a password check in flight should hold the display up. The
+       // fingerprint PAM stays armed for the whole lock, so gating on
+       // `authenticating` here would keep the panel lit until unlock.
+-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
++      if (root.lockRequested && !root.authenticatingPassword && !root.usbAuthenticating) root.runBlank()
+     }
+   }
+ 
+@@ -481,6 +581,12 @@
+     else armBlankTimer()
+   }
+ 
++  onUsbAuthenticatingChanged: {
++    if (!lockRequested) return
++    if (usbAuthenticating) idleBlankTimer.stop()
++    else armBlankTimer()
++  }
++
+   FileView {
+     path: "/etc/pam.d/omarchy-lock-password"
+     watchChanges: true
+@@ -504,6 +610,7 @@
+   Component.onCompleted: {
+     refreshBackground()
+     refreshFingerprintStatus()
++    refreshUsbKeyStatus()
+     checkStrandedLock()
+   }
+ 
+@@ -530,6 +637,8 @@
+         realScreens: root.realScreenCount(),
+         passwordPam: root.passwordPamConfigured,
+         fingerprint: root.fingerprintConfigured,
++        usbKey: root.usbKeyPresent,
++        usbAuthenticating: root.usbAuthenticating,
+         authenticating: root.authenticating,
+         lastEvent: root.lastEvent,
+         lastEventAt: root.lastEventAt
+@@ -539,6 +648,7 @@
+     function preview(): string {
+       root.refreshBackground()
+       root.refreshFingerprintStatus()
++      root.refreshUsbKeyStatus()
+       root.previewVisible = true
+       return "ok"
+     }
+--- /tmp/pristine/usr/share/omarchy/shell/plugins/lock/LockView.qml	2026-09-08 20:30:57.000000000 +0200
++++ /tmp/modified/usr/share/omarchy/shell/plugins/lock/LockView.qml	2026-09-12 00:51:35.611534979 +0200
+@@ -9,7 +9,10 @@
+   property string backgroundPath: ""
+   property int backgroundVersion: 0
+   property bool fingerprintConfigured: false
++  property bool usbKeyPresent: false
++  property bool usbAuthenticating: false
+   property bool authenticatingPassword: false
++  readonly property bool checking: authenticatingPassword || usbAuthenticating
+   property string failureMessage: ""
+   property int failedAttempts: 0
+   property bool inputEnabled: true
+@@ -26,13 +29,13 @@
+   readonly property int passwordDotLetterSpacing: Math.round(Style.font.heading * 0.19)
+   // Space to keep clear on each side of the field for the fingerprint icon
+   // (icon width plus a gap) so the centered dots never run under it.
+-  readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
++  readonly property real fingerprintReserve: (fingerprintConfigured || usbKeyPresent) ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+   // Shrink the dots to fit once the password outgrows the field, so every
+   // keystroke stays visible — otherwise long passwords clip with no feedback.
+   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
+     ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
+     : 1
+-  readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
++  readonly property bool showPasswordCursor: inputEnabled && !root.checking && failureMessage.length === 0
+   readonly property bool errorState: failureMessage.length > 0
+   readonly property var inputBorderSpec: errorState
+     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
+@@ -171,7 +174,7 @@
+         onAccepted: {
+           var submitted = root.passwordText
+           root.passwordTextEdited("")
+-          if (submitted.length > 0) root.submitPassword(submitted)
++          if (submitted.length > 0 || root.usbKeyPresent) root.submitPassword(submitted)
+         }
+ 
+         Keys.onPressed: function(event) {
+@@ -186,12 +189,12 @@
+       Text {
+         textFormat: Text.PlainText
+         anchors.fill: passwordInput
+-        text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
++        text: root.checking ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+         visible: passwordInput.text.length === 0
+-        color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
++        color: root.checking ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
+         font.family: Style.font.family
+         font.pixelSize: root.fieldFontSize
+-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
++        font.italic: !root.checking && root.failureMessage.length > 0
+         horizontalAlignment: Text.AlignHCenter
+         verticalAlignment: Text.AlignVCenter
+         elide: Text.ElideRight
+@@ -200,14 +203,18 @@
+       // Fingerprint hint pinned inside the field's right edge when a sensor is
+       // enrolled, so the user knows they can touch to unlock instead of typing.
+       // Matches hyprlock, which draws its fingerprint icon in the same spot.
++      // Auth hint pinned inside the field's right edge: USB-key icon when the
++      // hardware key is present (passwordless unlock armed, empty password / enter),
++      // otherwise the fingerprint icon when a sensor is enrolled.
++      // Matches hyprlock, which draws its fingerprint icon in the same spot.
+       Text {
+         id: fingerprintIcon
+         objectName: "fingerprintIndicator"
+         anchors.right: parent.right
+         anchors.rightMargin: inputField.borderRight + 18
+         anchors.verticalCenter: parent.verticalCenter
+-        visible: root.fingerprintConfigured
+-        text: "󰈷"
++        visible: root.usbKeyPresent || root.fingerprintConfigured
++        text: root.usbKeyPresent ? "\uDB80\uDE21" : "󰈷" // U+F02E1 md-usb
+         color: Color.lock.placeholder
+         font.family: Style.font.family
+         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+# --- new file: /etc/pam.d/omarchy-lock-usb ---
+#%PAM-1.0
+# Passwordless unlock via pam_usb hardware key (local customization).
+# Uses pam_exec + pamusb-check instead of pam_usb.so directly: the module's
+# UDisks device check hangs inside quickshell's PAM context (StartServiceByName
+# timeout), while the standalone checker succeeds from a fresh process.
+# Password/fingerprint remain as fallback.
+auth       sufficient              pam_exec.so quiet /usr/bin/pamusb-check --quiet --service=omarchy-lock-usb denial
+account    include                 system-local-login
