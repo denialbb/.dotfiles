@@ -16,41 +16,95 @@ import trafilatura
 from readability import Document
 from bs4 import BeautifulSoup
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
 
-def fetch_arxiv_abstract_md(arxiv_id: str) -> tuple[str, str, str]:
-    url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
+
+def fetch_arxiv_html_or_abstract_md(arxiv_id: str) -> tuple[str, str, str]:
+    """
+    Check if arXiv paper has a full HTML version (arxiv.org/html/<id> or ar5iv).
+    If available, converts full HTML paper into clean markdown for Glow.
+    Otherwise falls back to structured metadata + abstract.
+    """
+    clean_id = re.sub(r"v[0-9]+$", "", arxiv_id)
+    pdf_url = f"https://arxiv.org/pdf/{clean_id}.pdf"
+    abs_url = f"https://arxiv.org/abs/{clean_id}"
+
+    # 1. Fetch metadata (title, authors, summary) from export API as reliable baseline
+    meta_title = f"arXiv:{clean_id}"
+    meta_authors = "Unknown"
+    meta_summary = ""
+    meta_published = ""
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        api_url = f"https://export.arxiv.org/api/query?id_list={clean_id}"
+        req = urllib.request.Request(api_url, headers=HEADERS)
+        with urllib.request.urlopen(req, timeout=8) as resp:
             xml_data = resp.read()
-        soup = BeautifulSoup(xml_data, "xml")
-        entry = soup.find("entry")
-        if not entry:
-            return "arXiv Paper", "Unknown Author", f"# arXiv:{arxiv_id}\n\nNo details found."
+        soup_api = BeautifulSoup(xml_data, "xml")
+        entry = soup_api.find("entry")
+        if entry:
+            if entry.title:
+                meta_title = " ".join(entry.title.text.split())
+            authors = [a.find("name").text for a in entry.find_all("author") if a.find("name")]
+            if authors:
+                meta_authors = ", ".join(authors)
+            if entry.summary:
+                meta_summary = entry.summary.text.strip()
+            if entry.published:
+                meta_published = entry.published.text[:10]
+    except Exception:
+        pass
 
-        title = " ".join(entry.title.text.split()) if entry.title else f"arXiv:{arxiv_id}"
-        authors = [a.find("name").text for a in entry.find_all("author") if a.find("name")]
-        author_str = ", ".join(authors) if authors else "Unknown"
-        summary = entry.summary.text.strip() if entry.summary else ""
-        published = entry.published.text[:10] if entry.published else ""
-        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-        abs_url = f"https://arxiv.org/abs/{arxiv_id}"
+    # 2. Check for full HTML paper: first arxiv.org/html/<id>, then ar5iv mirror
+    full_html_content = ""
+    html_endpoints = [
+        f"https://arxiv.org/html/{clean_id}",
+        f"https://ar5iv.labs.arxiv.org/html/{clean_id}",
+    ]
 
-        md = f"""# {title}
+    for candidate_url in html_endpoints:
+        try:
+            downloaded = trafilatura.fetch_url(candidate_url)
+            if downloaded and ("ltx_document" in downloaded or "<article" in downloaded or "<body" in downloaded):
+                # Verify it is not a 404/not yet available landing page
+                if "No HTML version" not in downloaded and "HTML is not available" not in downloaded:
+                    soup = BeautifulSoup(downloaded, "html.parser")
+                    main_el = soup.find("article", class_=re.compile(r"ltx_document")) or soup.find("div", class_=re.compile(r"ltx_document"))
+                    target_html = str(main_el) if main_el else downloaded
 
-**Authors:** {author_str}  
-**Published:** {published}  
-**Link:** [{abs_url}]({abs_url}) | [PDF]({pdf_url})
+                    extracted_md = trafilatura.extract(
+                        target_html,
+                        output_format="markdown",
+                        include_links=True,
+                        include_images=True,
+                        include_tables=True,
+                        favor_recall=True,
+                    )
+                    if extracted_md and len(extracted_md.strip()) > 300:
+                        full_html_content = extracted_md
+                        break
+        except Exception:
+            continue
 
----
+    # 3. Format header and body
+    header = f"# {meta_title}\n\n"
+    header += f"**Authors:** {meta_authors}  \n"
+    if meta_published:
+        header += f"**Published:** {meta_published}  \n"
+    header += f"**Link:** [{abs_url}]({abs_url}) | [PDF]({pdf_url})\n\n---\n\n"
 
-### Abstract
+    if full_html_content:
+        # Full HTML version available!
+        header += "*(Rendering full arXiv HTML paper)*\n\n"
+        full_md = header + full_html_content
+    else:
+        # Fallback to abstract
+        header += f"### Abstract\n\n{meta_summary}\n\n*(Full HTML not available on arXiv; view PDF via link above)*\n"
+        full_md = header
 
-{summary}
-"""
-        return title, author_str, md
-    except Exception as e:
-        return f"arXiv:{arxiv_id}", "Unknown", f"# arXiv:{arxiv_id}\n\nFailed to fetch metadata: {e}"
+    return meta_title, meta_authors, full_md
 
 
 def fetch_web_article_md(target_url: str) -> tuple[str, str, str]:
@@ -77,7 +131,7 @@ def fetch_web_article_md(target_url: str) -> tuple[str, str, str]:
     if not content_md:
         try:
             import requests
-            resp = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+            resp = requests.get(target_url, headers=HEADERS, timeout=15)
             doc = Document(resp.text)
             if not title:
                 title = doc.short_title() or doc.title()
@@ -108,9 +162,9 @@ def main():
     raw_arxiv = re.match(r"^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$", url)
 
     if arxiv_match:
-        _, _, md = fetch_arxiv_abstract_md(arxiv_match.group(1))
+        _, _, md = fetch_arxiv_html_or_abstract_md(arxiv_match.group(1))
     elif raw_arxiv:
-        _, _, md = fetch_arxiv_abstract_md(url)
+        _, _, md = fetch_arxiv_html_or_abstract_md(url)
     else:
         _, _, md = fetch_web_article_md(url)
 
