@@ -1,0 +1,288 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "trafilatura>=1.12.0",
+#   "readability-lxml>=0.8.1",
+#   "beautifulsoup4>=4.12.0",
+#   "requests>=2.31.0",
+# ]
+# ///
+"""
+article-selector: Interactive article actions popup for nom and CLI.
+Options:
+  1. Read in Glow (CLI markdown viewer)
+  2. Send EPUB to OPDS / Inbox (~/Articles/Inbox via article2epub)
+  3. Open in Browser (xdg-open)
+  4. Copy URL to Clipboard (wl-copy / xclip)
+"""
+
+import sys
+import os
+import re
+import shutil
+import tempfile
+import subprocess
+from pathlib import Path
+import urllib.request
+import trafilatura
+from readability import Document
+from bs4 import BeautifulSoup
+
+
+def notify(title: str, message: str):
+    if shutil.which("notify-send") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        try:
+            subprocess.run(["notify-send", "-a", "nom", title, message], timeout=2)
+        except Exception:
+            pass
+
+
+def fetch_arxiv_abstract_md(arxiv_id: str) -> tuple[str, str, str]:
+    """Fetch arXiv paper metadata from export API and format as clean Markdown."""
+    url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            xml_data = resp.read()
+        soup = BeautifulSoup(xml_data, "xml")
+        entry = soup.find("entry")
+        if not entry:
+            return "arXiv Paper", "Unknown Author", f"# arXiv:{arxiv_id}\n\nNo details found."
+
+        title = " ".join(entry.title.text.split()) if entry.title else f"arXiv:{arxiv_id}"
+        authors = [a.find("name").text for a in entry.find_all("author") if a.find("name")]
+        author_str = ", ".join(authors) if authors else "Unknown"
+        summary = entry.summary.text.strip() if entry.summary else ""
+        published = entry.published.text[:10] if entry.published else ""
+        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+        abs_url = f"https://arxiv.org/abs/{arxiv_id}"
+
+        md = f"""# {title}
+
+**Authors:** {author_str}  
+**Published:** {published}  
+**Link:** [{abs_url}]({abs_url}) | [PDF]({pdf_url})
+
+---
+
+### Abstract
+
+{summary}
+"""
+        return title, author_str, md
+    except Exception as e:
+        return f"arXiv:{arxiv_id}", "Unknown", f"# arXiv:{arxiv_id}\n\nFailed to fetch metadata: {e}"
+
+
+def fetch_web_article_md(target_url: str) -> tuple[str, str, str]:
+    """Extract clean article content using trafilatura with readability fallback."""
+    downloaded = trafilatura.fetch_url(target_url)
+    title = ""
+    author = ""
+    content_md = ""
+
+    if downloaded:
+        meta = trafilatura.extract_metadata(downloaded)
+        if meta:
+            title = meta.title or ""
+            author = meta.author or ""
+
+        content_md = trafilatura.extract(
+            downloaded,
+            output_format="markdown",
+            include_links=True,
+            include_images=True,
+            include_tables=True,
+            favor_recall=True,
+        ) or ""
+
+    if not content_md:
+        try:
+            import requests
+            resp = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+            doc = Document(resp.text)
+            if not title:
+                title = doc.short_title() or doc.title()
+            soup = BeautifulSoup(doc.summary(), "html.parser")
+            content_md = soup.get_text("\n\n").strip()
+        except Exception:
+            pass
+
+    if not title:
+        title = target_url.split("/")[-1].replace("-", " ").replace("_", " ") or "Article"
+
+    header = f"# {title}\n\n"
+    if author:
+        header += f"**Author:** {author}  \n"
+    header += f"**Source:** [{target_url}]({target_url})\n\n---\n\n"
+
+    full_md = header + (content_md if content_md else "_Could not automatically extract article body._")
+    return title, author, full_md
+
+
+def action_read_in_glow(url: str):
+    arxiv_match = re.search(r"arxiv\.org\/(?:abs|html|pdf)\/([0-9]{4}\.[0-9]{4,5})", url)
+    raw_arxiv = re.match(r"^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$", url)
+
+    # Spinner while downloading and parsing markdown
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        temp_path = f.name
+
+    fetch_script = f"""
+import sys
+from pathlib import Path
+
+arxiv_match = {repr(arxiv_match.group(1) if arxiv_match else None)}
+raw_arxiv = {repr(raw_arxiv.group(0) if raw_arxiv else None)}
+url = {repr(url)}
+temp_path = {repr(temp_path)}
+
+if arxiv_match:
+    title, author, md = fetch_arxiv_abstract_md(arxiv_match)
+elif raw_arxiv:
+    title, author, md = fetch_arxiv_abstract_md(raw_arxiv)
+else:
+    title, author, md = fetch_web_article_md(url)
+
+with open(temp_path, 'w', encoding='utf-8') as out:
+    out.write(md)
+"""
+    # Run fetch with gum spin if available
+    if shutil.which("gum"):
+        subprocess.run([
+            "gum", "spin",
+            "--spinner", "dot",
+            "--title", "Downloading & formatting article for Glow...",
+            "--",
+            sys.executable, "-c",
+            "import sys; " +
+            "from pathlib import Path; " +
+            f"sys.path.insert(0, '{os.path.dirname(__file__)}'); " +
+            "import importlib.util; " +
+            f"spec = importlib.util.spec_from_file_location('selector', '{os.path.abspath(__file__)}'); " +
+            "mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); " +
+            f"t, a, md = mod.fetch_arxiv_abstract_md('{arxiv_match.group(1)}') if {bool(arxiv_match)} else (mod.fetch_arxiv_abstract_md('{url}') if {bool(raw_arxiv)} else mod.fetch_web_article_md('{url}')); " +
+            f"open('{temp_path}', 'w').write(md)"
+        ])
+    else:
+        print("Fetching article...")
+        if arxiv_match:
+            _, _, md = fetch_arxiv_abstract_md(arxiv_match.group(1))
+        elif raw_arxiv:
+            _, _, md = fetch_arxiv_abstract_md(url)
+        else:
+            _, _, md = fetch_web_article_md(url)
+        with open(temp_path, "w") as out:
+            out.write(md)
+
+    try:
+        subprocess.run(["glow", "-p", temp_path])
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+
+
+def action_send_epub(url: str):
+    article2epub = Path.home() / ".local" / "bin" / "article2epub"
+    if not article2epub.exists():
+        notify("Error", f"article2epub not found at {article2epub}")
+        return
+
+    notify("nom", "Generating EPUB for OPDS / Inbox...")
+    subprocess.Popen(
+        [str(article2epub), url],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    notify("nom", "EPUB generation started in background")
+
+
+def action_open_browser(url: str):
+    if shutil.which("xdg-open"):
+        subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif shutil.which("open"):
+        subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def action_copy_url(url: str):
+    copied = False
+    if shutil.which("wl-copy"):
+        res = subprocess.run(["wl-copy"], input=url, text=True)
+        if res.returncode == 0:
+            copied = True
+    elif shutil.which("xclip"):
+        res = subprocess.run(["xclip", "-selection", "clipboard"], input=url, text=True)
+        if res.returncode == 0:
+            copied = True
+    if copied:
+        notify("nom", "Copied URL to clipboard")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: article-selector <URL>")
+        sys.exit(1)
+
+    url = sys.argv[1].strip()
+    if not url:
+        sys.exit(0)
+
+    options = [
+        "📖  Read in Glow",
+        "📥  Send EPUB to OPDS / Inbox",
+        "🌐  Open in Browser",
+        "📋  Copy URL to Clipboard",
+    ]
+
+    selected = None
+    if shutil.which("gum"):
+        try:
+            header = f"Article Action: {url[:65]}..." if len(url) > 65 else f"Article Action: {url}"
+            res = subprocess.run(
+                [
+                    "gum", "choose",
+                    "--header", header,
+                    "--cursor", "▸ ",
+                    "--selected.foreground", "42",
+                ] + options,
+                capture_output=True,
+                text=True,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                selected = res.stdout.strip()
+        except Exception:
+            pass
+
+    if not selected:
+        print(f"\nSelect action for: {url}\n")
+        for i, opt in enumerate(options, 1):
+            print(f"[{i}] {opt}")
+        print("[q] Cancel\n")
+        choice = input("Choice: ").strip()
+        if choice == "1":
+            selected = options[0]
+        elif choice == "2":
+            selected = options[1]
+        elif choice == "3":
+            selected = options[2]
+        elif choice == "4":
+            selected = options[3]
+        else:
+            sys.exit(0)
+
+    if "Read in Glow" in selected:
+        action_read_in_glow(url)
+    elif "Send EPUB" in selected:
+        action_send_epub(url)
+    elif "Open in Browser" in selected:
+        action_open_browser(url)
+    elif "Copy URL" in selected:
+        action_copy_url(url)
+
+
+if __name__ == "__main__":
+    main()

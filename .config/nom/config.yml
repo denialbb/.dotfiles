@@ -5,7 +5,7 @@ version: ""
 openers:
     - regex: ".*"
       cmd: "/home/denial/.local/bin/article-read %s"
-      takeover: false
+      takeover: true
 
 
 
