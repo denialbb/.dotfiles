@@ -29,6 +29,19 @@ CHOICE=""
 read -n 1 -r -s -p "Select option [1-4, q]: " CHOICE || true
 echo ""
 
+open_browser() {
+    local target="$1"
+    if command -v omarchy-launch-browser >/dev/null 2>&1; then
+        omarchy-launch-browser "$target" >/dev/null 2>&1 &
+    elif command -v chromium >/dev/null 2>&1; then
+        nohup chromium "$target" >/dev/null 2>&1 &
+        disown || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+        nohup xdg-open "$target" >/dev/null 2>&1 &
+        disown || true
+    fi
+}
+
 case "$CHOICE" in
     1)
         TEMP_MD=$(mktemp --suffix=.md)
@@ -41,6 +54,11 @@ case "$CHOICE" in
             echo "Downloading article..."
             "${FETCH_CMD[@]}"
         fi
+
+        # Flush any terminal responses/escape leaks from stdin before launching glow
+        python3 -c "import sys, termios; termios.tcflush(sys.stdin, termios.TCIFLUSH)" 2>/dev/null || true
+        # Reset terminal screen and cursor state
+        printf '\033[2J\033[H\033[?25h'
 
         if [ -s "$TEMP_MD" ]; then
             # Open glow with pager. Keeps terminal alive until user exits glow pager.
@@ -69,13 +87,11 @@ case "$CHOICE" in
         ;;
 
     3)
-        if command -v xdg-open >/dev/null 2>&1; then
-            nohup xdg-open "$URL" >/dev/null 2>&1 &
-            disown || true
-        elif command -v open >/dev/null 2>&1; then
-            nohup open "$URL" >/dev/null 2>&1 &
-            disown || true
+        open_browser "$URL"
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send -a "nom" "Browser" "Opened article in browser" -t 2000 || true
         fi
+        sleep 0.5
         ;;
 
     4)
