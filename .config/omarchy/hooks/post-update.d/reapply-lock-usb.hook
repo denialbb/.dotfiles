@@ -21,3 +21,14 @@ if [[ -f "$PATCH" ]] && ! grep -q "usbKeyPresent" "$SERVICE" 2>/dev/null; then
     echo "Failed to reapply pamusb lock screen patch." >&2
   fi
 fi
+
+# Lid gate must run after the USB patch: its anchors expect the patched file.
+LID_GATE="/home/denial/.config/omarchy/lock-lid-gate.py"
+if [[ -f "$LID_GATE" ]] && ! grep -q "lidOpen" "$SERVICE" 2>/dev/null; then
+  if sudo python3 "$LID_GATE"; then
+    echo "Reapplied lid-gated fingerprint patch."
+    omarchy-restart-shell || true
+  else
+    echo "Failed to reapply lid-gated fingerprint patch." >&2
+  fi
+fi
