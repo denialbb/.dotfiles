@@ -14,6 +14,8 @@ panel_bg = "black"
 [terminal]
 # Matches -c "#{pane_current_path}" on every split, window, and session
 new_cwd = "follow"
+# Always open new panes with fish, regardless of $SHELL.
+default_shell = "/usr/bin/fish"
 
 [keys]
 prefix = "ctrl+space"
@@ -94,3 +96,4 @@ tab_bar_right = [{ type = "zoom" }, { type = "hostname" }]
 # the basename of the pane cwd. This is what Hyprland shows in the group bar,
 # and it resolves on the server so remote sessions name the remote host.
 window_title = "{hostname}: {workspace}"
+agent_panel_sort = "priority"
