@@ -1,0 +1,33 @@
+{
+  "agentMode": "accept-edits",
+  "altScreenMode": "always",
+  "model": "Gemini 3.1 Pro (High)",
+  "notifications": true,
+  "permissions": {
+    "allow": [
+      "command(ls)",
+      "command(which)",
+      "command(mise)",
+      "command(grep)"
+    ]
+  },
+  "runningLightSpeed": "fast",
+  "showFeedbackSurvey": false,
+  "showTips": false,
+  "statusLine": {
+    "type": "command",
+    "command": "python3 /home/denial/.gemini/config/plugins/agy-context-tracker/scripts/statusline.py",
+    "enabled": true
+  },
+  "toolPermission": "always-proceed",
+  "trustedWorkspaces": [
+    "/home/denial",
+    "/home/denial/Projects/kobo-notes",
+    "/home/denial/Work/uni/AI-2526/eliva/challenges/ink-detection",
+    "/home/denial/.config/omarchy/plugins/denial.beeper-relay",
+    "/home/denial/mnt/homebox",
+    "/home/denial/Projects/TensorHCI",
+    "/home/denial/.config"
+  ],
+  "verbosity": "low"
+}

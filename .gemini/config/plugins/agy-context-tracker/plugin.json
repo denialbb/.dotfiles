@@ -1,0 +1,4 @@
+{
+  "name": "agy-context-tracker",
+  "description": "Token usage tracker, Powerline statusline, and PreInvocation context budget guard for Antigravity CLI."
+}

@@ -28,6 +28,8 @@ mnt/
 *.key
 *credentials*
 *secret*
+.gemini/google_accounts.json
+.gemini/oauth_creds.json
 .bash_history
 .zsh_history
 .python_history
@@ -43,6 +45,11 @@ mnt/
 .local/share/Trash/
 node_modules/
 __pycache__/
+.pytest_cache/
 *.log
 .librewolf/**
 !.librewolf/*/chrome/**
+
+# --- agy/antigravity: track config+plugins, never machine state ---
+.gemini/antigravity-cli/*
+!.gemini/antigravity-cli/settings.json

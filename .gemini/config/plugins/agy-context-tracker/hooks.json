@@ -1,0 +1,11 @@
+{
+  "context-guard": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "./scripts/context_guard.py",
+        "timeout": 5
+      }
+    ]
+  }
+}

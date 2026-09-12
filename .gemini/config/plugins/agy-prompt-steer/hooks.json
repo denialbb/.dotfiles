@@ -1,0 +1,10 @@
+{
+  "prompt-steer": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "./scripts/steer_hook.py"
+      }
+    ]
+  }
+}

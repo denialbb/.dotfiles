@@ -1,0 +1,11 @@
+{
+  "herdr": {
+    "PreInvocation": [
+      {
+        "command": "bash '/home/denial/.gemini/config/hooks/herdr-agent-state.sh' session",
+        "timeout": 10,
+        "type": "command"
+      }
+    ]
+  }
+}
