@@ -1,7 +1,7 @@
 {
   "agentMode": "accept-edits",
   "altScreenMode": "always",
-  "model": "Gemini 3.1 Pro (High)",
+  "model": "Gemini 3.8 Flash (Medium)",
   "notifications": true,
   "permissions": {
     "allow": [
@@ -27,7 +27,9 @@
     "/home/denial/.config/omarchy/plugins/denial.beeper-relay",
     "/home/denial/mnt/homebox",
     "/home/denial/Projects/TensorHCI",
-    "/home/denial/.config"
+    "/home/denial/.config",
+    "/home/denial/Projects/batch-scheduling",
+    "/home/denial/.gemini"
   ],
   "verbosity": "low"
 }
