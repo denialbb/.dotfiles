@@ -1,5 +1,6 @@
 # Dynamic theme colors
 # config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
+config-file = ?"~/.config/ghostty/config.local"
 command = /usr/bin/fish
 theme = "Gruvbox Dark"
 background = #222222
