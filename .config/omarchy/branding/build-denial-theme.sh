@@ -10,15 +10,29 @@ if ((EUID == 0)); then
   exit 1
 fi
 
-if ! python3 -c "import PIL" 2>/dev/null; then
+# pacman pillow lands in system python; mise/brew pythons can't see it.
+# Probe candidates and pin the one that imports PIL.
+PY=""
+for cand in /usr/bin/python3 python3; do
+  if "$cand" -c "import PIL" 2>/dev/null; then PY="$cand"; break; fi
+done
+if [[ -z $PY ]]; then
   echo "python-pillow missing, installing..."
   sudo pacman -S --needed --noconfirm python-pillow
+  for cand in /usr/bin/python3 python3; do
+    if "$cand" -c "import PIL" 2>/dev/null; then PY="$cand"; break; fi
+  done
+fi
+if [[ -z $PY ]]; then
+  echo "ERROR: PIL still unavailable after install." >&2
+  echo "tried /usr/bin/python3 ($(/usr/bin/python3 --version 2>&1)) and python3 ($(python3 --version 2>&1) at $(command -v python3))" >&2
+  echo "pacman says: $(pacman -Q python-pillow 2>&1)" >&2
+  exit 1
 fi
 
 BRAND_DIR="$HOME/.config/omarchy/branding"
 SRC_ART="${1:-$BRAND_DIR/denial-logo-new-2.png}"
 BASE=/usr/share/plymouth/themes/omarchy
-ACC_R=60 ACC_G=191 ACC_B=92 # Matrix #3CBF5C
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -36,7 +50,7 @@ sed -i -e 's/^Name=.*/Name=Denial/' \
 # Tokyo Night #1a1b26 -> Matrix #080C09
 sed -i 's/Window.SetBackground\(Top\|Bottom\)Color(0.101, 0.105, 0.149)/Window.SetBackground\1Color(0.031, 0.047, 0.035)/' denial.script
 
-python3 - "$SRC_ART" <<'PYEOF'
+"$PY" - "$SRC_ART" <<'PYEOF'
 import sys
 from PIL import Image
 ACC = (60, 191, 92)
