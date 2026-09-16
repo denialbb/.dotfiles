@@ -1,0 +1,17 @@
+#!/bin/bash
+# Keep pam_usb first in sudo/polkit stacks so a present USB key grants auth
+# without prompting fingerprint. Reasserted after every omarchy update because
+# omarchy-setup-security-fingerprint and future migrations edit these files.
+set -e
+
+USB_LINE="auth       sufficient                  pam_usb.so"
+
+for pam in /etc/pam.d/sudo /etc/pam.d/polkit-1; do
+  [[ -f $pam ]] || continue
+  grep -q 'pam_fprintd\.so' "$pam" || continue
+  if [[ $(head -n 1 "$pam") != "$USB_LINE" ]]; then
+    sudo sed -i '/pam_usb\.so/d' "$pam"
+    sudo sed -i "1i $USB_LINE" "$pam"
+    echo "Reapplied pam_usb-first ordering to $pam."
+  fi
+done
