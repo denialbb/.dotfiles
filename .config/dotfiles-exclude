@@ -73,5 +73,5 @@ __pycache__/
 .config/omarchy/plugins/
 .local/share/*
 !.local/share/applications/
-*.local
+config.local*
 *.local.conf
