@@ -25,16 +25,54 @@ BRAIN_DIR = os.path.expanduser("~/.gemini/antigravity-cli/brain")
 CONV_DIR = os.path.expanduser("~/.gemini/antigravity-cli/conversations")
 GIT_CACHE_TTL = 5.0  # seconds, mirrors pi's async 1s polling without blocking
 
-# Omarchy palette (matches pi omarchy theme + user's powerline-footer
-# theme.json overrides: model=muted, gitClean=muted, gitDirty=warning,
-# context=dim/warning/error, separator=borderMuted).
-C_MUTED = (133, 133, 133)  # #858585 model, clean git
-C_DIM = (94, 94, 94)  # #5e5e5e context normal
-C_SEP = (65, 65, 65)  # #414141 borderMuted separators
-C_TEXT = (212, 212, 212)  # #d4d4d4
-C_WARN = (255, 199, 153)  # #ffc799 context >70%, dirty git, unstaged
-C_ERROR = (255, 128, 128)  # #ff8080 context >90%
-C_GREEN = (153, 255, 228)  # #99ffe4 staged counts
+def _hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
+    hex_str = hex_str.lstrip("#")
+    if len(hex_str) == 3:
+        hex_str = "".join(c * 2 for c in hex_str)
+    return (int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16))
+
+
+def _load_omarchy_palette():
+    muted = (133, 133, 133)
+    dim = (94, 94, 94)
+    sep = (65, 65, 65)
+    text = (212, 212, 212)
+    warn = (255, 199, 153)
+    error = (255, 128, 128)
+    green = (153, 255, 228)
+
+    colors_file = os.path.expanduser("~/.local/state/omarchy/current/theme/colors.toml")
+    if os.path.exists(colors_file):
+        try:
+            import tomllib
+            with open(colors_file, "rb") as f:
+                c = tomllib.load(f)
+            if "muted" in c:
+                muted = _hex_to_rgb(c["muted"])
+            if "foreground" in c:
+                text = _hex_to_rgb(c["foreground"])
+            if "dark_foreground" in c:
+                dim = _hex_to_rgb(c["dark_foreground"])
+            elif "muted" in c:
+                dim = muted
+            if "dark_background" in c:
+                sep = _hex_to_rgb(c["dark_background"])
+            elif "muted" in c:
+                sep = muted
+            if "yellow" in c:
+                warn = _hex_to_rgb(c["yellow"])
+            elif "orange" in c:
+                warn = _hex_to_rgb(c["orange"])
+            if "red" in c:
+                error = _hex_to_rgb(c["red"])
+            if "green" in c:
+                green = _hex_to_rgb(c["green"])
+        except Exception:
+            pass
+    return muted, dim, sep, text, warn, error, green
+
+
+C_MUTED, C_DIM, C_SEP, C_TEXT, C_WARN, C_ERROR, C_GREEN = _load_omarchy_palette()
 
 
 def get_model_context_window(model_name: str) -> int:

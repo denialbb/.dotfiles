@@ -1,9 +1,8 @@
 # Dynamic theme colors
-# config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
+config-file = ?"~/.local/state/omarchy/current/theme/ghostty.conf"
 config-file = ?"~/.config/ghostty/config.local"
 command = /usr/bin/fish
-theme = "Gruvbox Dark"
-background = #222222
+# theme, background, and palette are loaded from omarchy theme above
 background-opacity = 0.7
 font-family = "Monaco Nerd Font Mono"
 font-size = 15

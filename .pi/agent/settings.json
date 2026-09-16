@@ -1,5 +1,5 @@
 {
-  "theme": "omarchy-system",
+  "theme": "omarchy",
   "lastChangelogVersion": "0.85.1",
   "defaultProvider": "opencode-go",
   "defaultModel": "deepseek-v4-flash",

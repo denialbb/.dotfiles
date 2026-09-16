@@ -22,7 +22,9 @@ def blend_colors(hex1, hex2, weight):
 
 def main():
     home = os.path.expanduser('~')
-    alacritty_path = os.path.join(home, '.config/omarchy/current/theme/alacritty.toml')
+    alacritty_path = os.path.join(home, '.local/state/omarchy/current/theme/alacritty.toml')
+    if not os.path.exists(alacritty_path):
+        alacritty_path = os.path.join(home, '.config/omarchy/current/theme/alacritty.toml')
     
     # Defaults
     bg = "#101010"

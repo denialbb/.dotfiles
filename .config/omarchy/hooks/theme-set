@@ -7,7 +7,9 @@
 omarchy-adapt-background
 
 # Copy current Neovim theme config to Neovim plugins directory to trigger hot-reload
-if [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
+if [ -f "$HOME/.local/state/omarchy/current/theme/neovim.lua" ]; then
+    cp "$HOME/.local/state/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+elif [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
     cp "$HOME/.config/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
 fi
 
