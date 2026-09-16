@@ -1,0 +1,31 @@
+#!/bin/bash
+# Reassert static Matrix boot styling after updates:
+# - Plymouth default stays 'denial' (theme dir itself is update-proof;
+#   asset changes still need a manual 'sudo limine-mkinitcpio' rebuild)
+# - Limine menu keeps denial branding + Matrix colors (a manual
+#   'omarchy-refresh-limine' overwrites /boot/limine.conf from template)
+set -e
+
+if [[ $(plymouth-set-default-theme 2>/dev/null) != "denial" ]]; then
+  sudo plymouth-set-default-theme denial
+  echo "Restored denial Plymouth theme (run 'sudo limine-mkinitcpio' to rebuild UKIs)."
+fi
+
+LIMINE=/boot/limine.conf
+if [[ -f $LIMINE ]] && grep -q '^interface_branding:' "$LIMINE" &&
+  [[ $(grep '^interface_branding:' "$LIMINE") != "interface_branding: denial" ]]; then
+  sudo sed -i \
+    -e "s|^interface_branding:.*|interface_branding: denial|" \
+    -e "s|^interface_branding_color:.*|interface_branding_color: 3CBF5C|" \
+    -e "s|^interface_help_color:.*|interface_help_color: 3CBF5C|" \
+    -e "s|^interface_help_color_bright:.*|interface_help_color_bright: A4E0A8|" \
+    -e "s|^term_background:.*|term_background: 080C09|" \
+    -e "s|^backdrop:.*|backdrop: 080C09|" \
+    -e "s|^term_palette:.*|term_palette: 080C09;A83A3A;2D9A48;B8BA48;3D8F68;5A7A58;4BB56A;8BC98C|" \
+    -e "s|^term_palette_bright:.*|term_palette_bright: 3A6840;D05050;5ED87A;D4D66A;5AA080;7A927A;6ECB88;C5E6C6|" \
+    -e "s|^term_foreground:.*|term_foreground: 8BC98C|" \
+    -e "s|^term_foreground_bright:.*|term_foreground_bright: C5E6C6|" \
+    -e "s|^term_background_bright:.*|term_background_bright: 121A13|" \
+    "$LIMINE"
+  echo "Reapplied Matrix Limine branding."
+fi
