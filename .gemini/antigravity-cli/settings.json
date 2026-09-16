@@ -1,10 +1,15 @@
 {
   "agentMode": "accept-edits",
   "altScreenMode": "always",
-  "model": "Gemini 3.1 Pro (High)",
+  "model": "Gemini 3.8 Flash (High)",
   "notifications": true,
   "permissions": {
-    "allow": ["command(ls)", "command(which)", "command(mise)", "command(grep)"]
+    "allow": [
+      "command(ls)",
+      "command(which)",
+      "command(mise)",
+      "command(grep)"
+    ]
   },
   "runningLightSpeed": "fast",
   "showFeedbackSurvey": false,
