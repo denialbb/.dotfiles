@@ -14,13 +14,19 @@ fi
 # Probe candidates and pin the one that imports PIL.
 PY=""
 for cand in /usr/bin/python3 python3; do
-  if "$cand" -c "import PIL" 2>/dev/null; then PY="$cand"; break; fi
+  if "$cand" -c "import PIL" 2>/dev/null; then
+    PY="$cand"
+    break
+  fi
 done
 if [[ -z $PY ]]; then
   echo "python-pillow missing, installing..."
   sudo pacman -S --needed --noconfirm python-pillow
   for cand in /usr/bin/python3 python3; do
-    if "$cand" -c "import PIL" 2>/dev/null; then PY="$cand"; break; fi
+    if "$cand" -c "import PIL" 2>/dev/null; then
+      PY="$cand"
+      break
+    fi
   done
 fi
 if [[ -z $PY ]]; then
@@ -54,15 +60,21 @@ sed -i 's/Window.SetBackground\(Top\|Bottom\)Color(0.101, 0.105, 0.149)/Window.S
 import sys
 from PIL import Image
 ACC = (60, 191, 92)
-# green-dominant pixels -> phosphor green, luminance kept
+PANEL = (0x12, 0x1A, 0x13)  # Matrix lighter_background for box interior
+# Tokyo Night chrome (pale blue-grey, black fill) -> Matrix green + dark panel
 for n in ['lock', 'entry', 'bullet']:
     im = Image.open(n + '.png').convert('RGBA')
     px = im.load()
     for y in range(im.size[1]):
         for x in range(im.size[0]):
             r, g, b, a = px[x, y]
-            if a > 8 and g > 60 and g >= r and g >= b:
-                k = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+            if a <= 8:
+                continue
+            lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+            if r < 16 and g < 16 and b < 16:
+                px[x, y] = (PANEL[0], PANEL[1], PANEL[2], a)
+            elif lum > 0.4:
+                k = 0.35 + 0.65 * lum
                 px[x, y] = (int(ACC[0] * k), int(ACC[1] * k), int(ACC[2] * k), a)
     im.save(n + '.png')
 # 1-bit progress assets: palette index 0 is the fg color
