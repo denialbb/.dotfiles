@@ -11,7 +11,7 @@ if ((EUID == 0)); then
 fi
 
 BRAND_DIR="$HOME/.config/omarchy/branding"
-SRC_ART="${1:-$BRAND_DIR/denial-logo-new-1.png}"
+SRC_ART="${1:-$BRAND_DIR/denial-logo-new-2.png}"
 BASE=/usr/share/plymouth/themes/omarchy
 ACC_R=60 ACC_G=191 ACC_B=92  # Matrix #3CBF5C
 

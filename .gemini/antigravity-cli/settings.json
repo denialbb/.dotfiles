@@ -30,7 +30,8 @@
     "/home/denial/.config",
     "/home/denial/Projects/batch-scheduling",
     "/home/denial/.gemini",
-    "/home/denial/.config/hunk"
+    "/home/denial/.config/hunk",
+    "/home/denial/.config/omarchy/branding"
   ],
   "verbosity": "low"
 }
