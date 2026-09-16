@@ -1,15 +1,10 @@
 {
   "agentMode": "accept-edits",
   "altScreenMode": "always",
-  "model": "Gemini 3.8 Flash (Medium)",
+  "model": "Gemini 3.1 Pro (High)",
   "notifications": true,
   "permissions": {
-    "allow": [
-      "command(ls)",
-      "command(which)",
-      "command(mise)",
-      "command(grep)"
-    ]
+    "allow": ["command(ls)", "command(which)", "command(mise)", "command(grep)"]
   },
   "runningLightSpeed": "fast",
   "showFeedbackSurvey": false,
@@ -31,7 +26,11 @@
     "/home/denial/Projects/batch-scheduling",
     "/home/denial/.gemini",
     "/home/denial/.config/hunk",
-    "/home/denial/.config/omarchy/branding"
+    "/home/denial/.config/omarchy/branding",
+    "/home/denial/.config/hunk",
+    "/home/denial/Projects",
+    "/home/denial/Projects/ai-tooling",
+    "/home/denial/Projects/ai-tooling/skills"
   ],
   "verbosity": "low"
 }
