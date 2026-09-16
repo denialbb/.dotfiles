@@ -10,6 +10,11 @@ if ((EUID == 0)); then
   exit 1
 fi
 
+if ! python3 -c "import PIL" 2>/dev/null; then
+  echo "python-pillow missing, installing..."
+  sudo pacman -S --needed --noconfirm python-pillow
+fi
+
 BRAND_DIR="$HOME/.config/omarchy/branding"
 SRC_ART="${1:-$BRAND_DIR/denial-logo-new-2.png}"
 BASE=/usr/share/plymouth/themes/omarchy
