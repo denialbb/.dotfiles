@@ -1,8 +1,8 @@
 {
   "theme": "omarchy-system",
   "lastChangelogVersion": "0.85.1",
-  "defaultProvider": "opencode",
-  "defaultModel": "muse-spark-1.3-contributor-free",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4-flash",
   "images": {
     "blockImages": false
   },

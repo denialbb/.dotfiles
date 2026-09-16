@@ -1,0 +1,10 @@
+#!/bin/bash
+# mon-sleep: DPMS-off all monitors immediately. Stays off until key/click
+# (or a DP-1 link flap wakes DP-1 -- use `mon-dp1 off` for that one).
+set -u
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  HYPRLAND_INSTANCE_SIGNATURE=$(ls "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null | head -1)
+  export HYPRLAND_INSTANCE_SIGNATURE
+fi
+hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null && echo "displays off"

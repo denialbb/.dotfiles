@@ -1,0 +1,54 @@
+#!/bin/bash
+# dpms-reblank-guard: re-blank displays when a monitor reconnects while locked.
+# Why: HKC DP-1 drops/reasserts its DP link ~5x/hour; each reconnect makes
+# Hyprland re-enable the output with DPMS on, lighting the monitor under the
+# lock screen. This guard puts it back to sleep within ~2s. User key/click
+# wakes are untouched (they emit no monitoradded event).
+set -u
+
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+log() { echo "dpms-guard: $*" >&2; }
+
+resolve_socket() {
+  local dir
+  dir=$(ls -t "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null | head -1)
+  [[ -n $dir ]] || return 1
+  printf '%s' "$XDG_RUNTIME_DIR/hypr/$dir/.socket2.sock"
+}
+
+is_locked() {
+  [[ $(omarchy-shell lock isLocked 2>/dev/null) == "true" ]]
+}
+
+reblank() {
+  # Settle delay: let Hyprland finish the modeset before blanking.
+  sleep 2
+  if is_locked; then
+    log "reconnect while locked -> DPMS off"
+    hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  else
+    log "reconnect while unlocked -> leaving displays on"
+  fi
+}
+
+main() {
+  local sock
+  while true; do
+    sock=$(resolve_socket) || { log "no hypr socket yet, retrying"; sleep 10; continue; }
+    log "listening on $sock"
+    while IFS= read -r event; do
+      case "$event" in
+        monitoradded\>\>*|monitoraddedv2\>\>*)
+          log "event: $event"
+          reblank &
+          ;;
+      esac
+    done < <(socat -U - "UNIX-CONNECT:$sock")
+    log "socket stream ended, re-resolving in 5s"
+    sleep 5
+  done
+}
+
+main

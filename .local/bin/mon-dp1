@@ -1,0 +1,31 @@
+#!/bin/bash
+# mon-dp1: manually turn rain's flaky HKC monitor (DP-1) off / back on.
+# DP-1's link flaps (~5x/hour) and each reconnect wakes it from DPMS-off;
+# disabling the output keeps it dark regardless of flaps.
+# Usage: mon-dp1 [--]off|on|status
+set -u
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  HYPRLAND_INSTANCE_SIGNATURE=$(ls "$XDG_RUNTIME_DIR/hypr/" 2>/dev/null | head -1)
+  export HYPRLAND_INSTANCE_SIGNATURE
+fi
+CONF="$HOME/.config/hypr/monitors.lua"
+MODE_LINE='hl.monitor({ output = "DP-1", mode = "1920x1080@60", position = "auto", scale = 1 })'
+OFF_LINE='hl.monitor({ output = "DP-1", disabled = true })  -- manual off; mon-dp1 on to re-enable'
+
+arg=${1:-status}; arg=${arg#--}
+case $arg in
+  off)
+    cp "$CONF" "$CONF.bak.$(date +%s)"
+    sed -i "s|^hl.monitor({ output = \"DP-1\".*|$OFF_LINE|" "$CONF"
+    hyprctl reload >/dev/null && echo "DP-1 off"
+    ;;
+  on)
+    sed -i "s|^hl.monitor({ output = \"DP-1\".*|$MODE_LINE|" "$CONF"
+    hyprctl reload >/dev/null && echo "DP-1 on (60Hz cap)"
+    ;;
+  status)
+    hyprctl monitors -j | jq -r '.[] | [.name, .disabled, .dpmsStatus] | @tsv'
+    ;;
+  *) echo "usage: mon-dp1 [--]off|on|status" >&2; exit 1 ;;
+esac

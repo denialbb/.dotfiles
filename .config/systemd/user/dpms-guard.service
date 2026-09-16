@@ -1,0 +1,14 @@
+[Unit]
+Description=Re-blank displays on monitor reconnect while locked
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=OMARCHY_PATH=/usr/share/omarchy
+ExecStart=%h/.local/bin/dpms-reblank-guard
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

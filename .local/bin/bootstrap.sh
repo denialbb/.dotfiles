@@ -22,6 +22,11 @@ NVIM_REPO="git@github.com:denialbb/nvim.git"
 NVIM_DIR="$HOME/.config/nvim"
 BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%s)"
 
+# Never prompt for SSH passphrases/host keys inside this script: interactive
+# prompts are invisible under `gum spin` and look like a hang. Fail fast
+# instead — ensure_github_ssh() below gives the fix-it steps up front.
+export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new"
+
 # Animation & Status Helpers
 HAS_GUM=0
 if command -v gum &>/dev/null; then
@@ -48,6 +53,9 @@ step_header() {
     echo -e "\n${CLR_CYAN}${CLR_BOLD}[${num}/${total}]${CLR_RESET} ${CLR_BOLD}${msg}${CLR_RESET}"
 }
 
+# NOTE: never wrap commands that can prompt (ssh/passphrase, sudo, yay -S)
+# or do network I/O in run_with_spinner — their prompts/progress are hidden
+# and a stall looks like a hang. Run those visibly instead.
 run_with_spinner() {
     local title="$1"
     shift
@@ -91,10 +99,32 @@ config() {
     /usr/bin/git --git-dir="$DOTFILES_DIR" --work-tree="$HOME" "$@"
 }
 
+# Pre-flight: GitHub SSH must work before any clone attempt. With
+# BatchMode all later git-over-SSH ops fail fast instead of hanging on a
+# hidden passphrase prompt, so check once here with a helpful message.
+ensure_github_ssh() {
+    local out
+    out=$(ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)
+    if grep -qi "successfully authenticated" <<< "$out"; then
+        log_ok "GitHub SSH authentication OK."
+        return 0
+    fi
+    echo -e "  ${CLR_RED}✘${CLR_RESET} GitHub SSH authentication failed:"
+    echo "$out" | sed 's/^/    /'
+    echo -e "  ${CLR_YELLOW}Fix and re-run:${CLR_RESET}"
+    echo '    1. eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519   # visible passphrase prompt'
+    echo '    2. ssh -T git@github.com   # expect: Hi <user>! You have successfully authenticated'
+    echo '    3. Still rejected? Upload ~/.ssh/id_ed25519.pub at github.com/settings/keys,'
+    echo '       or copy .ssh/ off the USB backup first (README fresh-install step 2).'
+    exit 1
+}
+
 # Step 1
 step_header "1" "7" "Initializing Dotfiles Bare Repository"
+ensure_github_ssh
 if [ ! -d "$DOTFILES_DIR" ]; then
-    run_with_spinner "Cloning bare repository from GitHub" git clone --bare "$DOTFILES_REPO" "$DOTFILES_DIR"
+    log_info "Cloning bare repository from GitHub (visible progress, not hidden in spinner)..."
+    git clone --bare "$DOTFILES_REPO" "$DOTFILES_DIR"
     log_ok "Dotfiles repository cloned."
 else
     log_ok "Bare repository already present at ${CLR_DIM}${DOTFILES_DIR}${CLR_RESET}."
@@ -109,13 +139,17 @@ if config checkout >/dev/null 2>&1; then
 else
     log_warn "Conflicting pre-existing configs detected. Moving to backup..."
     mkdir -p "$BACKUP_DIR"
-    config checkout 2>&1 | grep -E "^\s+\." | awk '{print $1}' | while IFS= read -r file; do
-        if [ -e "$HOME/$file" ]; then
+    # Checkout error lists each blocker on its own indented line, e.g.:
+    #   <tab>.config/mise/config.toml
+    # Take the whole line (filenames may contain spaces, e.g. bat themes),
+    # so strip leading whitespace instead of awk '{print $1}'.
+    config checkout 2>&1 | awk '/^[[:space:]]/ { sub(/^[[:space:]]+/, ""); if (length) print }' | while IFS= read -r file; do
+        if [ -e "$HOME/$file" ] || [ -L "$HOME/$file" ]; then
             mkdir -p "$BACKUP_DIR/$(dirname "$file")"
             mv "$HOME/$file" "$BACKUP_DIR/$file"
         fi
     done
-    config checkout >/dev/null
+    config checkout
     log_ok "Backup created at ${CLR_YELLOW}${BACKUP_DIR}${CLR_RESET} and checkout finished."
 fi
 
@@ -158,16 +192,22 @@ fi
 # Step 5
 step_header "5" "7" "Setting Up Neovim Configuration"
 if [ ! -d "$NVIM_DIR" ]; then
-    run_with_spinner "Cloning Neovim configuration" git clone "$NVIM_REPO" "$NVIM_DIR"
+    log_info "Cloning Neovim configuration (visible progress, not hidden in spinner)..."
+    git clone "$NVIM_REPO" "$NVIM_DIR"
     log_ok "Neovim config cloned."
 elif [ ! -d "$NVIM_DIR/.git" ]; then
     log_warn "Existing ~/.config/nvim is not a git repository. Archiving..."
     mv "$NVIM_DIR" "${NVIM_DIR}.bak.$(date +%s)"
-    run_with_spinner "Cloning Neovim configuration" git clone "$NVIM_REPO" "$NVIM_DIR"
+    log_info "Cloning Neovim configuration (visible progress, not hidden in spinner)..."
+    git clone "$NVIM_REPO" "$NVIM_DIR"
     log_ok "Fresh Neovim config cloned."
 else
-    run_with_spinner "Updating existing Neovim config" git -C "$NVIM_DIR" pull --ff-only || true
-    log_ok "Neovim configuration up to date."
+    log_info "Updating existing Neovim config..."
+    if git -C "$NVIM_DIR" pull --ff-only; then
+        log_ok "Neovim configuration up to date."
+    else
+        log_warn "Neovim update failed (network/SSH?) — keeping existing checkout."
+    fi
 fi
 
 # Step 6
