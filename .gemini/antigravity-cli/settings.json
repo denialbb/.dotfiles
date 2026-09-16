@@ -29,7 +29,8 @@
     "/home/denial/Projects/TensorHCI",
     "/home/denial/.config",
     "/home/denial/Projects/batch-scheduling",
-    "/home/denial/.gemini"
+    "/home/denial/.gemini",
+    "/home/denial/.config/hunk"
   ],
   "verbosity": "low"
 }

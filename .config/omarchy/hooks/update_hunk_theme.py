@@ -194,37 +194,58 @@ def main():
         with open(config_path) as f:
             current = f.read()
 
-    # Drop any previous [themes.omarchy...] sections (incl. .syntax subsection).
+    # Drop any previous [themes.omarchy...] sections (incl. .syntax_scopes subsection).
+    header_re = re.compile(r"^\s*\[\s*([^\]]+?)\s*\]\s*$")
     out = []
     skipping = False
     for line in current.splitlines(keepends=True):
-        if re.match(r"\s*\[themes\.omarchy(\.\w+)?\]\s*$", line):
-            skipping = True
-            continue
-        if skipping and re.match(r"\s*\[.*\]\s*$", line):
-            skipping = False
+        m = header_re.match(line)
+        if m:
+            table_name = m.group(1).strip().strip("\"'")
+            if table_name == "themes.omarchy" or table_name.startswith("themes.omarchy."):
+                skipping = True
+                continue
+            else:
+                skipping = False
         if not skipping:
             out.append(line)
-    current = "".join(out)
 
-    # Select the omarchy theme (top-level, before first section header).
-    if re.match(r"(?m)^\s*theme\s*=", current):
-        parts = re.split(r"(?m)^(?=\s*\[)", current, maxsplit=1)
-        parts[0] = re.sub(r"(?m)^\s*theme\s*=.*$", 'theme = "omarchy"', parts[0])
-        current = "".join(parts)
-    else:
-        parts = re.split(r"(?m)^(?=\s*\[)", current, maxsplit=1)
-        if len(parts) == 2:
-            current = parts[0] + 'theme = "omarchy"\n' + parts[1]
+    # Separate root options from subsequent tables
+    root_lines = []
+    table_lines = []
+    in_table = False
+    for line in out:
+        if not in_table and header_re.match(line):
+            in_table = True
+        if in_table:
+            table_lines.append(line)
         else:
-            current = current + ('\n' if current and not current.endswith('\n') else '') + 'theme = "omarchy"\n'
+            root_lines.append(line)
 
-    if not current.endswith("\n"):
-        current += "\n"
-    current = current.rstrip("\n") + "\n\n" + block
+    # Remove all existing root theme declarations to prevent duplicate key errors
+    root_lines = [line for line in root_lines if not re.match(r"^\s*theme\s*=", line)]
+
+    # Insert theme = "omarchy" after any initial comments/blank lines
+    insert_idx = 0
+    while insert_idx < len(root_lines) and (root_lines[insert_idx].strip().startswith("#") or not root_lines[insert_idx].strip()):
+        insert_idx += 1
+    root_lines.insert(insert_idx, 'theme = "omarchy"\n')
+
+    root_text = "".join(root_lines).rstrip("\n")
+    table_text = "".join(table_lines).strip("\n")
+
+    parts = [root_text]
+    if table_text:
+        parts.append(table_text)
+    parts.append(block.strip("\n"))
+
+    new_config = "\n\n".join(p for p in parts if p) + "\n"
+
+    # Validate TOML integrity before writing
+    tomllib.loads(new_config)
 
     with open(config_path, "w") as f:
-        f.write(current)
+        f.write(new_config)
     print(f"Hunk theme synced from {colors_path} -> {config_path}")
 
 
