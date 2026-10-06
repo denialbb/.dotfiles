@@ -1,5 +1,5 @@
 function bibfind --description "Fuzzy find books in library DB dump (floating tmux popup & clean card)"
-    argparse 't/title' 'a/author' 'i/inv' 'd/dewey' '1/id' 'r/raw' 'h/help' -- $argv
+    argparse 't/title' 'a/author' 'i/inv' 'd/dewey' 'e/estinti' '1/id' 'r/raw' 'h/help' -- $argv
     or return 1
 
     if set -q _flag_help
@@ -10,6 +10,7 @@ function bibfind --description "Fuzzy find books in library DB dump (floating tm
         echo "  -a, --author   Combined author + title lookup"
         echo "  -i, --inv      Lookup by inventory number"
         echo "  -d, --dewey    Lookup by Dewey classification / call number"
+        echo "  -e, --estinti  Lookup in weeded / discarded catalog (estinti)"
         echo "  -1, --id       Output only inventory ID on accept"
         echo "  -r, --raw      Output raw tab-separated record"
         echo "  -h, --help     Show this help message"
@@ -30,15 +31,21 @@ function bibfind --description "Fuzzy find books in library DB dump (floating tm
         end
     end
 
-    # 2. Cache clean TSV: Col 1 = Titolo, Col 2 = Autore, Col 3 = Inventario, Col 4 = Dewey
+    # 2. Cache clean TSVs: Col 1 = Titolo, Col 2 = Autore, Col 3 = Inventario, Col 4 = Dewey
     set -l cache_dir "$HOME/.cache/biblios"
-    set -l cache_tsv "$cache_dir/inventario.tsv"
-    if not test -f "$cache_tsv"; or test "$csv_path" -nt "$cache_tsv"
+    set -l cache_all "$cache_dir/inventario.tsv"
+    set -l cache_current "$cache_dir/inventario_current.tsv"
+    set -l cache_estinti "$cache_dir/inventario_estinti.tsv"
+    set -l toggle_script "$cache_dir/toggle.sh"
+    if not test -f "$cache_current"; or not test -f "$cache_estinti"; or not test -f "$cache_all"; or test "$csv_path" -nt "$cache_current"
         mkdir -p "$cache_dir"
         python3 -c "
 import html, re, sys
-src, dst = sys.argv[1], sys.argv[2]
-with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', encoding='utf-8') as out:
+src, dst_all, dst_cur, dst_est = sys.argv[1:5]
+with open(src, 'r', encoding='utf-8', errors='replace') as f, \
+     open(dst_all, 'w', encoding='utf-8') as f_all, \
+     open(dst_cur, 'w', encoding='utf-8') as f_cur, \
+     open(dst_est, 'w', encoding='utf-8') as f_est:
     for _ in range(4): next(f)
     for line in f:
         clean = html.unescape(line.rstrip('\r\n'))
@@ -53,12 +60,41 @@ with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', enc
             parts.append('')
         note = re.sub(r'<[^>]+>', '', parts[8]).strip()
         # Order: 0:Titolo, 1:Autore, 2:Inventario, 3:Dewey, 4:Editore, 5:Soggetto, 6:Prezzo, 7:Ubicazione, 8:Note
-        out_row = [parts[2], parts[3], parts[1], parts[0], parts[4], parts[5], parts[6], parts[7], note]
-        out.write('\t'.join(out_row) + '\n')
-" "$csv_path" "$cache_tsv"
+        row_str = '\t'.join([parts[2], parts[3], parts[1], parts[0], parts[4], parts[5], parts[6], parts[7], note]) + '\n'
+        f_all.write(row_str)
+        if 'ESTINTO' in note.upper():
+            f_est.write(row_str)
+        else:
+            f_cur.write(row_str)
+" "$csv_path" "$cache_all" "$cache_current" "$cache_estinti"
     end
 
-    # 3. Determine search scope & prompt (no emojis)
+    if not test -x "$toggle_script"
+        echo '#!/bin/sh
+state_file="$1"
+cache_cur="$2"
+cache_est="$3"
+if [ "$(cat "$state_file" 2>/dev/null)" = "current" ]; then
+    echo "estinti" > "$state_file"
+    echo "reload(cat \"$cache_est\")+change-border-label( Biblios Catalog [ESTINTI] )"
+else
+    echo "current" > "$state_file"
+    echo "reload(cat \"$cache_cur\")+change-border-label( Biblios Catalog [CURRENT] )"
+fi' > "$toggle_script"
+        chmod +x "$toggle_script"
+    end
+
+    # 3. Determine search dataset & mode
+    set -l search_file "$cache_current"
+    set -l mode "current"
+    set -l border_label " Biblios Catalog [CURRENT] "
+    if set -q _flag_estinti
+        set search_file "$cache_estinti"
+        set mode "estinti"
+        set border_label " Biblios Catalog [ESTINTI] "
+    end
+
+    # 4. Determine search scope & prompt (no emojis)
     set -l nth 1
     set -l prompt "Titolo > "
     if set -q _flag_inv
@@ -72,7 +108,7 @@ with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', enc
         set prompt "Autore+Titolo > "
     end
 
-    # 4. Preview card definition for TUI (auto-wraps inside preview pane)
+    # 5. Preview card definition for TUI (auto-wraps inside preview pane)
     set -l preview_cmd 'printf "\
 \033[1;33mTitolo     :\033[0m %s\n\
 \033[1;32mAutore     :\033[0m %s\n\
@@ -84,11 +120,14 @@ with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', enc
 \033[0;37mUbicazione :\033[0m %s\n\
 \033[1;31mNote       :\033[0m %s\n" {1} {2} {3} {4} {5} {6} {7} {8} {9}'
 
-    # 5. Core fzf options with live scope switching & word wrapping
+    # 6. Core fzf options with live scope switching & dataset toggle
+    set -l state_file "/tmp/bibfind_state.$fish_pid"
+    echo "$mode" > "$state_file"
+
     set -l fzf_opts \
         --layout=reverse \
         --border=rounded \
-        --border-label=" Biblios Catalog " \
+        --border-label="$border_label" \
         --border-label-pos=2 \
         --prompt="$prompt" \
         --delimiter=\t \
@@ -100,19 +139,20 @@ with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', enc
         --preview-window="right,50%,border-rounded,wrap-word" \
         --preview-wrap-sign="             " \
         --preview-label=" Record Card " \
-        --header="[Enter] View Card | [C-T] Titolo | [C-A] Autore | [C-I] Inv | [C-D] Dewey | [C-Y] Copy ID" \
+        --header="[C-E] Estinti/Current | [C-T] Titolo | [C-A] Autore | [C-I] Inv | [C-D] Dewey | [C-Y] Copy ID" \
         --bind="ctrl-t:change-prompt(Titolo > )+change-nth(1)" \
         --bind="ctrl-a:change-prompt(Autore+Titolo > )+change-nth(1,2)" \
         --bind="ctrl-i:change-prompt(Inventario > )+change-nth(3)" \
         --bind="ctrl-d:change-prompt(Dewey > )+change-nth(4)" \
+        --bind="ctrl-e:transform:$toggle_script '$state_file' '$cache_current' '$cache_estinti'" \
         --bind="ctrl-y:execute-silent(echo -n {3} | wl-copy 2>/dev/null || echo -n {3} | xclip -sel clip 2>/dev/null)" \
         --bind="ctrl-/:toggle-preview"
 
-    # 6. Check inline query: if exactly 1 hit, bypass fzf entirely
+    # 7. Check inline query: if exactly 1 hit, bypass fzf entirely
     set -l selected
     if test (count $argv) -gt 0
         set -l query (string join ' ' -- $argv)
-        set -l matches (cat "$cache_tsv" | fzf --filter="$query" --delimiter=\t --nth="$nth" --ignore-case)
+        set -l matches (cat "$search_file" | fzf --filter="$query" --delimiter=\t --nth="$nth" --ignore-case)
         if test (count $matches) -eq 1
             set selected $matches[1]
         else if set -q _flag_inv; and test (count $matches) -gt 1
@@ -142,24 +182,28 @@ with open(src, 'r', encoding='utf-8', errors='replace') as f, open(dst, 'w', enc
         end
     end
 
-    # 7. If not resolved to a single hit, launch fzf (tmux popup if in tmux)
+    # 8. If not resolved to a single hit, launch fzf (tmux popup if in tmux)
     if test -z "$selected"
         if test (count $argv) -gt 0
             set -a fzf_opts --query=(string join ' ' -- $argv)
         end
 
         if test -n "$TMUX"; or tmux display-message -p '#{session_name}' >/dev/null 2>&1
-            set selected (cat "$cache_tsv" | fzf-tmux -p 85%,80% -- $fzf_opts)
+            set selected (cat "$search_file" | fzf-tmux -p 85%,80% -- $fzf_opts)
         else
-            set selected (cat "$cache_tsv" | fzf --height=85% $fzf_opts)
+            set selected (cat "$search_file" | fzf --height=85% $fzf_opts)
         end
+
+        rm -f "$state_file"
 
         if test -z "$selected"
             return 1
         end
+    else
+        rm -f "$state_file"
     end
 
-    # 8. Handle output / pretty print
+    # 9. Handle output / pretty print
     set -l fields (string split \t -- "$selected")
 
     if set -q _flag_id
