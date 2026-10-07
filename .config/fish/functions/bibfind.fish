@@ -1,6 +1,20 @@
 function bibfind --description "Fuzzy find books in library DB dump (floating tmux popup & clean card)"
-    argparse 't/title' 'a/author' 'i/inv' 'd/dewey' 'e/estinti' '1/id' 'r/raw' 'h/help' -- $argv
+    argparse 't/title' 'a/author' 'i/inv' 'd/dewey' 'e/estinti' '1/id' 'r/raw' 'R/resolve=' 'h/help' -- $argv
     or return 1
+
+    if set -q _flag_resolve
+        set -l bibtrack_bin (command -v bibtrack 2>/dev/null)
+        if test -z "$bibtrack_bin" -a -x "/home/denial/Work/biblios/bibtrack"
+            set bibtrack_bin "/home/denial/Work/biblios/bibtrack"
+        end
+        if test -n "$bibtrack_bin"
+            $bibtrack_bin resolve "$_flag_resolve"
+            return $status
+        else
+            echo "bibfind: 'bibtrack' non trovato" >&2
+            return 1
+        end
+    end
 
     if set -q _flag_help
         echo "Usage: bibfind [options] [query]"
@@ -11,6 +25,7 @@ function bibfind --description "Fuzzy find books in library DB dump (floating tm
         echo "  -i, --inv      Lookup by inventory number"
         echo "  -d, --dewey    Lookup by Dewey classification / call number"
         echo "  -e, --estinti  Lookup in weeded / discarded catalog (estinti)"
+        echo "  -R, --resolve  Mark inventory duplicate anomaly as resolved in tracker"
         echo "  -1, --id       Output only inventory ID on accept"
         echo "  -r, --raw      Output raw tab-separated record"
         echo "  -h, --help     Show this help message"
@@ -124,6 +139,11 @@ fi' > "$toggle_script"
     set -l state_file "/tmp/bibfind_state.$fish_pid"
     echo "$mode" > "$state_file"
 
+    set -l bibtrack_bin (command -v bibtrack 2>/dev/null)
+    if test -z "$bibtrack_bin" -a -x "/home/denial/Work/biblios/bibtrack"
+        set bibtrack_bin "/home/denial/Work/biblios/bibtrack"
+    end
+
     set -l fzf_opts \
         --layout=reverse \
         --border=rounded \
@@ -139,12 +159,13 @@ fi' > "$toggle_script"
         --preview-window="right,50%,border-rounded,wrap-word" \
         --preview-wrap-sign="             " \
         --preview-label=" Record Card " \
-        --header="[C-E] Estinti/Current | [C-T] Titolo | [C-A] Autore | [C-I] Inv | [C-D] Dewey | [C-Y] Copy ID" \
+        --header="[C-E] Estinti/Cur | [C-R] Risolvi | [C-T] Titolo | [C-A] Aut | [C-I] Inv | [C-D] Dewey | [C-Y] Copy ID" \
         --bind="ctrl-t:change-prompt(Titolo > )+change-nth(1)" \
         --bind="ctrl-a:change-prompt(Autore+Titolo > )+change-nth(1,2)" \
         --bind="ctrl-i:change-prompt(Inventario > )+change-nth(3)" \
         --bind="ctrl-d:change-prompt(Dewey > )+change-nth(4)" \
         --bind="ctrl-e:transform:$toggle_script '$state_file' '$cache_current' '$cache_estinti'" \
+        --bind="ctrl-r:transform:$bibtrack_bin resolve-transform {3}" \
         --bind="ctrl-y:execute-silent(echo -n {3} | wl-copy 2>/dev/null || echo -n {3} | xclip -sel clip 2>/dev/null)" \
         --bind="ctrl-/:toggle-preview"
 
@@ -256,6 +277,25 @@ function _bibfind_print_card --description "Pretty print book details card (stat
     else if string match -qi "*MAGAZZINO*" -- "$notes"
         set border "\033[38;5;214m" # Amber (storage / archive)
         set badge "[IN MAGAZZINO]"
+    end
+
+    # Check duplicate tracker status cache
+    set -l cache_resolved "$HOME/.cache/biblios/tracker_resolved_invs.txt"
+    set -l cache_open "$HOME/.cache/biblios/tracker_open_invs.txt"
+    if test -f "$cache_resolved"; and grep -Fxq "$inv" "$cache_resolved" 2>/dev/null
+        if test -n "$badge"
+            set badge "$badge [RISOLTO]"
+        else
+            set badge "[RISOLTO]"
+            set border "\033[38;5;42m" # Green
+        end
+    else if test -f "$cache_open"; and grep -Fxq "$inv" "$cache_open" 2>/dev/null
+        if test -n "$badge"
+            set badge "$badge [DUPLICATO]"
+        else
+            set badge "[DUPLICATO]"
+            set border "\033[38;5;208m" # Orange / Amber
+        end
     end
 
     set -l reset "\033[0m"
