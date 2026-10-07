@@ -148,12 +148,28 @@ fi' > "$toggle_script"
         --bind="ctrl-y:execute-silent(echo -n {3} | wl-copy 2>/dev/null || echo -n {3} | xclip -sel clip 2>/dev/null)" \
         --bind="ctrl-/:toggle-preview"
 
-    # 7. Check inline query: if exactly 1 hit, bypass fzf entirely
+    # 7. Check inline query: if exactly 1 hit, bypass fzf entirely; if 0 hits, error out
     set -l selected
     if test (count $argv) -gt 0
         set -l query (string join ' ' -- $argv)
         set -l matches (cat "$search_file" | fzf --filter="$query" --delimiter=\t --nth="$nth" --ignore-case)
-        if test (count $matches) -eq 1
+        if test (count $matches) -eq 0
+            rm -f "$state_file"
+            set -l est_check
+            if not set -q _flag_estinti
+                if set -q _flag_inv
+                    set est_check (cat "$cache_estinti" | fzf --filter="^$query\$" --delimiter=\t --nth=3 --ignore-case)
+                else
+                    set est_check (cat "$cache_estinti" | fzf --filter="$query" --delimiter=\t --nth="$nth" --ignore-case)
+                end
+            end
+            if test (count $est_check) -gt 0
+                echo "bibfind: nessun risultato per '$query' (presente tra gli estinti: usa -e)" >&2
+            else
+                echo "bibfind: nessun risultato per '$query'" >&2
+            end
+            return 1
+        else if test (count $matches) -eq 1
             set selected $matches[1]
         else if set -q _flag_inv; and test (count $matches) -gt 1
             # In inventory mode, check if there is an exact ID match
