@@ -159,6 +159,13 @@ if [ -d "$HOME/.local/bin" ]; then
     log_ok "Executable permissions granted to ~/.local/bin scripts."
 fi
 
+# Ensure cursor theme symlink in ~/.local/share/icons
+if [ -d "$HOME/.icons/oreo_white_cursors" ]; then
+    mkdir -p "$HOME/.local/share/icons"
+    ln -sfn "../../.icons/oreo_white_cursors" "$HOME/.local/share/icons/oreo_white_cursors"
+    log_ok "Oreo cursors symlinked to ~/.local/share/icons."
+fi
+
 # Step 3
 step_header "3" "7" "Installing Curated Native Arch Packages"
 if [ -f "$HOME/.config/pkglist-native.txt" ]; then
