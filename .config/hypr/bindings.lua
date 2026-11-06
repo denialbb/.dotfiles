@@ -32,3 +32,15 @@
 hl.unbind("SUPER + SHIFT + code:18")
 o.bind("SUPER + SHIFT + 9", "Voxtype start (push-to-talk)", "voxtype record start")
 o.bind("SUPER + SHIFT + 9", "Voxtype stop (push-to-talk)", "voxtype record stop", { release = true })
+
+-- Wake display and reconcile monitors immediately when lid opens
+hl.unbind("switch:off:Lid Switch")
+o.bind("switch:off:Lid Switch", nil, "omarchy-system-wake", { locked = true })
+
+
+-- >>> omamail default mail client, do not edit by hand
+hl.unbind("SUPER + SHIFT + E")
+hl.unbind("SUPER + SHIFT + ALT + E")
+o.bind("SUPER + SHIFT + E", "Email", "omarchy-shell shell summon omamail '{}'")
+o.bind("SUPER + SHIFT + ALT + E", "New email", "omarchy-shell shell summon omamail '{\"compose\":true}'")
+-- <<< omamail default mail client
