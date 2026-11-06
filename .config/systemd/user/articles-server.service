@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/denial/.local/bin/articles-server
+ExecStart=/home/denial/.local/bin/articles-server --host 127.0.0.1
 Restart=on-failure
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1

@@ -1,7 +1,7 @@
 {
   "agentMode": "accept-edits",
   "altScreenMode": "always",
-  "model": "Gemini 3.8 Flash (High)",
+  "model": "Gemini 3.8 Flash (Medium)",
   "notifications": true,
   "permissions": {
     "allow": [
@@ -35,7 +35,22 @@
     "/home/denial/.config/hunk",
     "/home/denial/Projects",
     "/home/denial/Projects/ai-tooling",
-    "/home/denial/Projects/ai-tooling/skills"
-  ],
-  "verbosity": "low"
+    "/home/denial/Projects/ai-tooling/skills",
+    "/home/denial/Work/uni/AI-2526/oc/exercises",
+    "/home/denial/Work/biblios/DB DUMP",
+    "/home/denial/Work/biblios",
+    "/home/denial/Work/uni/AI-2526/oc",
+    "/home/denial/Projects/ISBN-bridge",
+    "/home/denial/Projects/neural-compression",
+    "/home/denial/Projects/blinky",
+    "/home/denial/Projects/denialbb",
+    "/home/denial/Projects/omamail-credential-retry",
+    "/home/denial/.config/hypr",
+    "/home/denial/Projects/VVC-intra",
+    "/home/denial/Work/uni/PhD",
+    "/home/denial/Projects/limen",
+    "/home/denial/Projects/agent-skills",
+    "/home/denial/Work/uni/AI-2526/ailab",
+    "/home/denial/Work/biblios/scratch"
+  ]
 }

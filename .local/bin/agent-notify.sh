@@ -29,6 +29,11 @@ fi
 AGENT="$1"
 STATE="$2"
 
+# Update blinky hardware indicator
+if command -v blinky >/dev/null 2>&1; then
+    blinky set "$AGENT" "$STATE" >/dev/null 2>&1 &
+fi
+
 TOOL_NAME=""
 TOOL_CMD=""
 

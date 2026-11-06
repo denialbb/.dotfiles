@@ -13,6 +13,37 @@ PAM_EOF
   sudo chmod 644 /etc/pam.d/omarchy-lock-usb
 fi
 
+# Ensure pam_usb.conf has necessary services exempted from deny_remote
+CONF="/etc/security/pam_usb.conf"
+if [[ -f "$CONF" ]]; then
+  for s in "omarchy-lock-usb" "sudo"; do
+    if ! grep -q "<service id=\"$s\">" "$CONF"; then
+      sudo sed -i "/<\/services>/i \        <service id=\"$s\">\n            <option name=\"deny_remote\">false</option>\n        </service>" "$CONF"
+      echo "Added $s to $CONF"
+    fi
+  done
+fi
+
+# Ensure /etc/pam.d/system-auth has pam_usb.so for login/sddm
+if [[ -f /etc/pam.d/system-auth ]] && ! grep -q "pam_usb\.so" /etc/pam.d/system-auth; then
+  sudo sed -i '/pam_unix\.so/i auth       sufficient pam_usb.so' /etc/pam.d/system-auth
+  echo "Reapplied pam_usb.so to /etc/pam.d/system-auth"
+fi
+
+# Pad integrity check: recover from 0-byte/corrupted device pad if mounted
+SYSTEM_PAD="/home/denial/.pamusb/MyUSB.pad"
+for u in $(grep -o '<volume_uuid>[^<]*' "$CONF" 2>/dev/null | sed 's/.*>//'); do
+  mnt=$(findmnt -rn -o TARGET -S UUID="$u" 2>/dev/null || true)
+  if [[ -n "$mnt" && -d "$mnt/.pamusb" && -s "$SYSTEM_PAD" ]]; then
+    dev_pad="$mnt/.pamusb/denial.sky.pad"
+    if [[ ! -s "$dev_pad" ]]; then
+      cp "$SYSTEM_PAD" "$dev_pad"
+      chmod 644 "$dev_pad"
+      echo "Restored 0-byte device pad on $mnt"
+    fi
+  fi
+done
+
 if [[ -f "$PATCH" ]] && ! grep -q "usbKeyPresent" "$SERVICE" 2>/dev/null; then
   if sed '/^# --- new file/,$d' "$PATCH" | sudo patch -p3 -d / --forward -r -; then
     echo "Reapplied pamusb lock screen patch."
@@ -32,3 +63,12 @@ if [[ -f "$LID_GATE" ]] && ! grep -q "lidOpen" "$SERVICE" 2>/dev/null; then
     echo "Failed to reapply lid-gated fingerprint patch." >&2
   fi
 fi
+
+# Ensure pam-usb lid-close handling persists across updates
+LID_CLOSE="/usr/bin/omarchy-system-lid-close"
+if [[ -f "$LID_CLOSE" ]] && ! grep -q "omarchy-hw-pam-usb" "$LID_CLOSE"; then
+  sudo sed -i '/omarchy-system-lock/i \  if omarchy-hw-pam-usb 2>/dev/null; then\n    omarchy-brightness-keyboard off 2>/dev/null || true\n    omarchy-brightness-display off >/dev/null 2>&1 || true\n  else' "$LID_CLOSE"
+  sudo sed -i '/omarchy-system-lock/a \  fi' "$LID_CLOSE"
+  echo "Reapplied pam-usb lid-close patch to $LID_CLOSE"
+fi
+

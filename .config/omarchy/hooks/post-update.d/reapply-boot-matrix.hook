@@ -1,19 +1,30 @@
 #!/bin/bash
 # Reassert static Matrix boot styling after updates:
 # - Plymouth default stays 'denial' (theme dir itself is update-proof;
-#   asset changes still need a manual 'sudo limine-mkinitcpio' rebuild)
-# - Limine menu keeps denial branding + Matrix colors (a manual
-#   'omarchy-refresh-limine' overwrites /boot/limine.conf from template)
+#   rebuilt & UKIs updated if missing or reset)
+# - Limine menu keeps denial branding + Matrix colors (reapplied if overwritten)
 set -e
 
-if [[ $(plymouth-set-default-theme 2>/dev/null) != "denial" ]]; then
+rebuild_uki=0
+
+if [[ ! -d /usr/share/plymouth/themes/denial ]]; then
+  echo "Rebuilding denial Plymouth theme..."
+  "$HOME/.config/omarchy/branding/build-denial-theme.sh"
+  rebuild_uki=1
+elif [[ $(plymouth-set-default-theme 2>/dev/null) != "denial" ]]; then
   sudo plymouth-set-default-theme denial
-  echo "Restored denial Plymouth theme (run 'sudo limine-mkinitcpio' to rebuild UKIs)."
+  echo "Restored denial Plymouth theme."
+  rebuild_uki=1
+fi
+
+if (( rebuild_uki )); then
+  echo "Rebuilding UKIs with denial theme..."
+  sudo limine-mkinitcpio
 fi
 
 LIMINE=/boot/limine.conf
-if [[ -f $LIMINE ]] && grep -q '^interface_branding:' "$LIMINE" &&
-  [[ $(grep '^interface_branding:' "$LIMINE") != "interface_branding: denial" ]]; then
+if sudo test -f "$LIMINE" && sudo grep -q '^interface_branding:' "$LIMINE" &&
+  [[ $(sudo grep '^interface_branding:' "$LIMINE") != "interface_branding: denial" ]]; then
   sudo sed -i \
     -e "s|^interface_branding:.*|interface_branding: denial|" \
     -e "s|^interface_branding_color:.*|interface_branding_color: 3CBF5C|" \

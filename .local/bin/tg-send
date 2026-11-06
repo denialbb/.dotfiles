@@ -206,9 +206,46 @@ PY
     echo "sent ✓"
 }
 
+cmd_doc() {
+    local caption="" silent=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --caption) [ $# -ge 2 ] || fail "--caption needs a value"; caption="$2"; shift 2 ;;
+            --silent) silent=1; shift ;;
+            --) shift; break ;;
+            -*) fail "unknown option: $1" ;;
+            *) break ;;
+        esac
+    done
+
+    local file="${1:-}"
+    [ -z "$file" ] && fail "empty file path"
+    [ ! -f "$file" ] && fail "file not found: $file"
+    file="$(realpath "$file")"
+
+    [ -z "$TOKEN" ] && fail "no token configured (run 'tg-send setup')"
+    [ -z "$CHAT_ID" ] && fail "no chat id configured (run 'tg-send chatid')"
+
+    local args=(-F "chat_id=$CHAT_ID" -F "document=@$file")
+    [ -n "$caption" ] && args+=(--form-string "caption=$caption" -F "parse_mode=HTML")
+    [ "$silent" -eq 1 ] && args+=(-F "disable_notification=true")
+
+    local resp code
+    resp=$(curl -sS -w '\n%{http_code}' "$API/bot$TOKEN/sendDocument" "${args[@]}")
+    code="${resp##*$'\n'}"
+    resp="${resp%$'\n'*}"
+    if [ "$code" != "200" ]; then
+        local desc
+        desc=$(echo "$resp" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("description","?"))' 2>/dev/null || echo "$resp")
+        fail "Telegram said: $desc (HTTP $code)"
+    fi
+    echo "sent document ✓"
+}
+
 cmd="${1:-send}"
 case "$cmd" in
     send) shift || true; cmd_send "$@" ;;
+    doc|document|file) shift || true; cmd_doc "$@" ;;
     chatid) cmd_chatid ;;
     me) cmd_me ;;
     setup) cmd_setup ;;
