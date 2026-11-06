@@ -1,0 +1,10 @@
+[opener]
+pdf = [
+    { run = 'sioyek %s', desc = "Sioyek", orphan = true, for = "linux" },
+]
+
+[open]
+prepend_rules = [
+    { mime = "application/pdf", use = [ "pdf", "reveal" ] },
+    { url = "*.pdf", use = [ "pdf", "reveal" ] },
+]
