@@ -14,3 +14,16 @@ source "$OMARCHY_PATH/default/bash/rc"
 # alias p='python'
 
 . "$HOME/.local/share/../bin/env.sh"
+
+# Book & Article servers
+alias start-articles='systemctl --user start articles-server.service'
+alias stop-articles='systemctl --user stop articles-server.service'
+alias restart-articles='systemctl --user restart articles-server.service'
+alias status-articles='systemctl --user status articles-server.service'
+
+alias start-calibre='systemctl --user start calibre-server.service'
+alias stop-calibre='systemctl --user stop calibre-server.service'
+alias restart-calibre='systemctl --user restart calibre-server.service'
+alias status-calibre='systemctl --user status calibre-server.service'
+
+. "$HOME/.cargo/env"

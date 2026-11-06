@@ -35,10 +35,13 @@ if status is-interactive
         end
     end 2>/dev/null
 
-    # Tmux auto-attach if not already in a pane (OMARCHY_NO_TMUX=1 opts out,
-    # e.g. herdr outside tmux - the var is inherited by child shells)
+    # Tmux auto-attach if not already in a pane. Opt out inside herdr (it sets
+    # HERDR_ENV in every pane) and via OMARCHY_NO_TMUX. Without this, each herdr
+    # pane execs tmux, which nests tmux inside herdr and makes tmux-continuum
+    # think another server is starting, so it skips restoring sessions.
     if status is-interactive
         and not set -q TMUX
+        and not set -q HERDR_ENV
         and not set -q OMARCHY_NO_TMUX
         and command -q tmux
         exec tmux new -A -s main
