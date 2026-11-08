@@ -1,1 +1,40 @@
 **/.claude/settings.local.json
+
+# Secrets, private keys & certificates
+**/*.key
+**/*.pem
+**/*.crt
+**/*.csr
+**/*.p12
+**/*.pfx
+**/*.asc
+**/*.gpg
+**/*.pad
+
+# KeePass databases & backups
+**/*.kdbx
+**/*.kdbx.*
+**/*.bak*
+
+# SSH private keys & host authorizations
+.ssh/id_*
+!.ssh/id_*.pub
+.ssh/authorized_keys
+.ssh/known_hosts*
+
+# PAM USB configurations
+.pamusb/
+**/pam_usb.conf
+
+# API tokens, notifications, credentials, environments
+**/*token*
+**/*credential*
+**/*secret*
+**/.env
+**/.env.*
+**/telegram-notify.conf
+**/auth.json
+
+# Syncthing machine-specific configs & secrets
+.config/syncthing/
+
