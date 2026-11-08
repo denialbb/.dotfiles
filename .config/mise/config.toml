@@ -5,4 +5,5 @@ ninja = "latest"
 python = "latest"
 
 [settings.upgrade]
-auto = false
+auto_prune = false
+
