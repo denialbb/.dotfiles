@@ -40,8 +40,8 @@ o.bind("switch:off:Lid Switch", nil, "omarchy-system-wake", { locked = true })
 -- >>> omamail default mail client, do not edit by hand
 hl.unbind("SUPER + SHIFT + E")
 hl.unbind("SUPER + SHIFT + ALT + E")
-o.bind("SUPER + SHIFT + E", "Email", "omarchy-shell shell summon omamail {}")
-o.bind("SUPER + SHIFT + ALT + E", "New email", "omarchy-shell shell summon omamail {"compose":true}")
+o.bind("SUPER + SHIFT + E", "Email", "omarchy-shell shell summon omamail '{}'")
+o.bind("SUPER + SHIFT + ALT + E", "New email", "omarchy-shell shell summon omamail '{\"compose\":true}'")
 -- <<< omamail default mail client
 
 -- Dictation keys from before Alt + Space and Right Alt became the defaults.
