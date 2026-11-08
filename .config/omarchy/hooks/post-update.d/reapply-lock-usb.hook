@@ -55,7 +55,7 @@ fi
 
 # Lid gate must run after the USB patch: its anchors expect the patched file.
 LID_GATE="/home/denial/.config/omarchy/lock-lid-gate.py"
-if [[ -f "$LID_GATE" ]] && ! grep -q "lidOpen" "$SERVICE" 2>/dev/null; then
+if [[ -f "$LID_GATE" && -d /proc/acpi/button/lid ]] && ! grep -q "lidOpen" "$SERVICE" 2>/dev/null; then
   if sudo python3 "$LID_GATE"; then
     echo "Reapplied lid-gated fingerprint patch."
     omarchy-restart-shell || true

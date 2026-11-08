@@ -13,6 +13,12 @@ def sub(old, new, count=1):
     src = src.replace(old, new)
 
 if "property bool lidOpen" not in src:
+    if "property bool usbKeyPresent: false" not in src:
+        sub("""  property bool fingerprintConfigured: false
+""", """  property bool fingerprintConfigured: false
+  property bool usbKeyPresent: false
+  property bool usbAuthenticating: false
+""")
     sub("""  property bool usbKeyPresent: false
   property bool usbAuthenticating: false
 """, """  property bool usbKeyPresent: false

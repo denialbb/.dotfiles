@@ -1,5 +1,8 @@
 [tools]
+cmake = "latest"
 go = "latest"
+ninja = "latest"
 python = "latest"
 
 [settings.upgrade]
+auto = false
