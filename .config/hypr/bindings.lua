@@ -50,3 +50,9 @@ if o.dictation_installed and o.dictation_installed() then
   o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")
   o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")
 end
+
+-- Unmount removable media (USB)
+o.bind("SUPER + U", "Unmount removable media", "omarchy-unmount-usb")
+o.bind("XF86AudioMedia", "Unmount removable media", "omarchy-unmount-usb", { locked = true })
+o.rebind("XF86Eject", "Unmount removable media", "omarchy-unmount-usb", { locked = true })
+

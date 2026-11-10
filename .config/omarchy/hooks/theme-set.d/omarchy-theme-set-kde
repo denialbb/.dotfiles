@@ -1,0 +1,296 @@
+#!/bin/bash
+# omarchy hook: theme-set — apply Omarchy theme colors to Qt/KDE via Kvantum
+#
+# Adapted from SykesTheLord/DotFiles for modern Omarchy Linux.
+# Reads current theme colors.toml and writes:
+#   ~/.config/Kvantum/OmarchyFlat/OmarchyFlat.kvconfig  (Full Kvantum theme)
+#   ~/.config/Kvantum/kvantum.kvconfig                 (Active theme)
+#   ~/.config/kdeglobals                               (KDE palette)
+#
+# Called automatically on theme change: omarchy-hook theme-set <theme-name>
+
+set -euo pipefail
+
+THEME_ARG=$(echo "${1:-}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+KVANTUM_DIR="$CONFIG_HOME/Kvantum/OmarchyFlat"
+KVCONFIG="$KVANTUM_DIR/OmarchyFlat.kvconfig"
+MAIN_KVCONFIG="$CONFIG_HOME/Kvantum/kvantum.kvconfig"
+KDEGLOBALS="$CONFIG_HOME/kdeglobals"
+
+# Ensure user session environments have QT_STYLE_OVERRIDE
+export QT_STYLE_OVERRIDE=kvantum
+systemctl --user import-environment QT_STYLE_OVERRIDE 2>/dev/null || true
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd QT_STYLE_OVERRIDE=kvantum 2>/dev/null || true
+fi
+
+# Locate active theme colors.toml
+COLORS_TOML=""
+for cand in \
+    "$STATE_HOME/omarchy/current/theme/colors.toml" \
+    "$CONFIG_HOME/omarchy/current/theme/colors.toml" \
+    "$CONFIG_HOME/omarchy/themes/$THEME_ARG/colors.toml" \
+    "/usr/share/omarchy/themes/$THEME_ARG/colors.toml"; do
+    if [[ -f "$cand" ]]; then
+        COLORS_TOML="$cand"
+        break
+    fi
+done
+
+if [[ -z "$COLORS_TOML" ]]; then
+    exit 0
+fi
+
+# Extract hex color (bare hex, no leading #)
+parse_hex() {
+    local key="$1"
+    grep -E "^${key}\s*=" "$COLORS_TOML" 2>/dev/null \
+        | sed -nE 's/^[^=]+=[[:space:]]*"#?([0-9a-fA-F]{6})".*/\1/p' \
+        | head -1
+}
+
+# Convert bare hex to R,G,B decimal
+hex_to_rgb() {
+    local h="$1"
+    printf "%d,%d,%d" "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
+}
+
+# ── Read palette ─────────────────────────────────────────────────────────────
+BG=$(parse_hex "background")
+DARK_BG=$(parse_hex "dark_background")
+DARKER_BG=$(parse_hex "darker_background")
+LIGHTER_BG=$(parse_hex "lighter_background")
+FG=$(parse_hex "foreground")
+LIGHT_FG=$(parse_hex "light_foreground")
+MUTED=$(parse_hex "muted")
+ACCENT=$(parse_hex "accent")
+SEL_BG=$(parse_hex "selection_background")
+SEL_FG=$(parse_hex "selection_foreground")
+
+C0=$(parse_hex "color0")
+C4=$(parse_hex "color4")
+C5=$(parse_hex "color5")
+C7=$(parse_hex "color7")
+C8=$(parse_hex "color8")
+C12=$(parse_hex "color12")
+
+[[ -z "$BG" ]] && BG="1e1e2e"
+[[ -z "$DARK_BG" ]] && DARK_BG="$BG"
+[[ -z "$DARKER_BG" ]] && DARKER_BG="$DARK_BG"
+[[ -z "$LIGHTER_BG" ]] && LIGHTER_BG="$BG"
+[[ -z "$FG" ]] && FG="cdd6f4"
+[[ -z "$LIGHT_FG" ]] && LIGHT_FG="$FG"
+[[ -z "$MUTED" ]] && MUTED="6c7086"
+[[ -z "$ACCENT" ]] && ACCENT="89b4fa"
+[[ -z "$SEL_BG" ]] && SEL_BG="$ACCENT"
+[[ -z "$SEL_FG" ]] && SEL_FG="$BG"
+
+[[ -z "$C0" ]] && C0="$BG"
+[[ -z "$C4" ]] && C4="$ACCENT"
+[[ -z "$C5" ]] && C5="$ACCENT"
+[[ -z "$C7" ]] && C7="$FG"
+[[ -z "$C8" ]] && C8="$LIGHTER_BG"
+[[ -z "$C12" ]] && C12="$LIGHT_FG"
+
+# RGB decimals for kdeglobals
+BG_RGB=$(hex_to_rgb "$BG")
+DARK_BG_RGB=$(hex_to_rgb "$DARK_BG")
+LIGHTER_BG_RGB=$(hex_to_rgb "$LIGHTER_BG")
+FG_RGB=$(hex_to_rgb "$FG")
+ACCENT_RGB=$(hex_to_rgb "$ACCENT")
+SEL_BG_RGB=$(hex_to_rgb "$SEL_BG")
+SEL_FG_RGB=$(hex_to_rgb "$SEL_FG")
+C0_RGB=$(hex_to_rgb "$C0")
+C4_RGB=$(hex_to_rgb "$C4")
+C5_RGB=$(hex_to_rgb "$C5")
+C7_RGB=$(hex_to_rgb "$C7")
+C8_RGB=$(hex_to_rgb "$C8")
+C12_RGB=$(hex_to_rgb "$C12")
+
+NEGATIVE_RGB="218,68,83"
+NEUTRAL_RGB="246,116,0"
+POSITIVE_RGB="39,174,96"
+VISITED_RGB="155,89,182"
+
+# ── 1. Kvantum Theme Generation ──────────────────────────────────────────────
+mkdir -p "$KVANTUM_DIR"
+if [[ ! -e "$KVANTUM_DIR/OmarchyFlat.svg" && -f "/usr/share/Kvantum/KvFlat/KvFlat.svg" ]]; then
+    ln -sf "/usr/share/Kvantum/KvFlat/KvFlat.svg" "$KVANTUM_DIR/OmarchyFlat.svg"
+fi
+
+BASE_KV="/usr/share/Kvantum/KvFlat/KvFlat.kvconfig"
+if [[ -f "$BASE_KV" ]]; then
+    # Generate complete kvconfig using KvFlat as base and overriding GeneralColors
+    python3 - <<EOF
+import re
+with open("$BASE_KV") as f:
+    raw_content = f.read()
+
+# Strip hardcoded white/bright text overrides from widget blocks so they inherit [GeneralColors]
+clean_lines = []
+for line in raw_content.splitlines():
+    if line.strip().startswith("text.") and ("white" in line.lower() or "#7DDCFF" in line):
+        continue
+    clean_lines.append(line)
+content = "\n".join(clean_lines)
+
+new_colors = """[GeneralColors]
+window.color=#${BG}
+base.color=#${DARK_BG}
+alt.base.color=#${LIGHTER_BG}
+button.color=#${LIGHTER_BG}
+light.color=#${LIGHTER_BG}
+mid.light.color=#${DARK_BG}
+dark.color=#${DARKER_BG}
+mid.color=#${BG}
+highlight.color=#${ACCENT}
+inactive.highlight.color=#${SEL_BG}
+text.color=#${FG}
+window.text.color=#${FG}
+button.text.color=#${LIGHT_FG}
+disabled.text.color=#${MUTED}
+tooltip.text.color=#${FG}
+highlight.text.color=#${DARKER_BG}
+link.color=#${C4}
+link.visited.color=#${C5}
+"""
+
+res = re.sub(r"\[GeneralColors\].*?(?=\n\[Hacks\])", new_colors.strip(), content, flags=re.DOTALL)
+with open("$KVCONFIG", "w") as f:
+    f.write(res)
+EOF
+fi
+
+# Set active Kvantum theme
+cat > "$MAIN_KVCONFIG" << EOF
+[General]
+theme=OmarchyFlat
+EOF
+
+# ── 2. kdeglobals ────────────────────────────────────────────────────────────
+cat > "$KDEGLOBALS" << EOF
+[ColorEffects:Disabled]
+ChangeSelectionColor=false
+Color=${C7_RGB}
+ColorAmount=0
+ColorEffect=0
+ContrastAmount=0.65
+ContrastEffect=1
+IntensityAmount=0.1
+IntensityEffect=2
+
+[ColorEffects:Inactive]
+ChangeSelectionColor=true
+Color=${C7_RGB}
+ColorAmount=0
+ColorEffect=0
+ContrastAmount=0.1
+ContrastEffect=2
+Enable=false
+IntensityAmount=0
+IntensityEffect=0
+
+[Colors:Button]
+BackgroundAlternate=${C8_RGB}
+BackgroundNormal=${C8_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[Colors:Header]
+BackgroundAlternate=${C8_RGB}
+BackgroundNormal=${BG_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[Colors:Selection]
+BackgroundAlternate=${SEL_BG_RGB}
+BackgroundNormal=${SEL_BG_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${SEL_FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[Colors:Tooltip]
+BackgroundAlternate=${C0_RGB}
+BackgroundNormal=${C0_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[Colors:View]
+BackgroundAlternate=${DARK_BG_RGB}
+BackgroundNormal=${BG_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[Colors:Window]
+BackgroundAlternate=${DARK_BG_RGB}
+BackgroundNormal=${BG_RGB}
+DecorationFocus=${ACCENT_RGB}
+DecorationHover=${ACCENT_RGB}
+ForegroundActive=${C12_RGB}
+ForegroundInactive=${C7_RGB}
+ForegroundLink=${C4_RGB}
+ForegroundNegative=${NEGATIVE_RGB}
+ForegroundNeutral=${NEUTRAL_RGB}
+ForegroundNormal=${FG_RGB}
+ForegroundPositive=${POSITIVE_RGB}
+ForegroundVisited=${VISITED_RGB}
+
+[General]
+ColorScheme=Omarchy
+Name=Omarchy
+shadeSortColumn=true
+
+[KDE]
+contrast=4
+
+[WM]
+activeBackground=${ACCENT_RGB}
+activeForeground=${SEL_FG_RGB}
+inactiveBackground=${C8_RGB}
+inactiveForeground=${C7_RGB}
+EOF
+
+# Notify running Qt/KDE apps
+dbus-send --session --type=signal / org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true

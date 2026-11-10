@@ -1,0 +1,75 @@
+#!/bin/bash
+# omarchy hook: theme-set — make KeePassXC follow the Omarchy light/dark mode
+#
+# Called by: omarchy-hook theme-set <theme-name>
+#
+# KeePassXC has no palette system that tracks the desktop, and its "auto" mode
+# shows the unlock window light before the palette is applied. So we translate
+# the active Omarchy theme's mode (colors.toml -> mode = "dark" | "light") into
+# KeePassXC's ApplicationTheme and write it to keepassxc.ini.
+#
+# Two hazards this hook is written around:
+#   * `omarchy hook install theme-set <file>` installs under the file's BASENAME,
+#     so this file is named `keepassxc-theme-set` — a bare `theme-set` would collide
+#     with omarchy-thunderbird / omarchy-contacts / omarchy-qutebrowser, which each
+#     ship a `theme-set`, and the last installed would silently win.
+#   * Once copied into the hooks directory, `$(dirname "$BASH_SOURCE")/..` resolves to
+#     THAT directory, not the plugin, so the CLI lookup misses. Self-locate instead.
+
+set -euo pipefail
+
+THEME=$(echo "${1:-}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+[[ -z "$THEME" ]] && exit 0
+
+# Self-locate the plugin: an explicit override, the installed plugin dirs, then a
+# development checkout. Never $(dirname "$BASH_SOURCE")/.. — see the note above.
+find_plugin() {
+  local cand
+  for cand in "${OMARCHY_KEEPASSXC_DIR:-}" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/Maximilian-Maag.keepassxc" \
+              "${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/plugins/Maximilian-Maag.keepassxc" \
+              "$HOME/.local/share/omarchy/plugins/Maximilian-Maag.keepassxc" \
+              "$HOME/Work/omarchy-keepassxc"; do
+    [[ -n $cand && -x $cand/bin/keepassxc-theme.py ]] && { printf '%s\n' "$cand"; return 0; }
+  done
+  false
+}
+
+PLUGIN_DIR="$(find_plugin)" || PLUGIN_DIR=""
+if [[ -z $PLUGIN_DIR ]]; then
+  echo "keepassxc-theme-set: cannot locate the omarchy-keepassxc plugin (set OMARCHY_KEEPASSXC_DIR)" >&2
+  exit 1
+fi
+
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# Locate the active theme's colors.toml (user themes override stock themes).
+COLORS=""
+for base in "$CONFIG_HOME/omarchy/themes" "/usr/share/omarchy/themes"; do
+  if [[ -f "$base/$THEME/colors.toml" ]]; then
+    COLORS="$base/$THEME/colors.toml"
+    break
+  fi
+done
+[[ -z "$COLORS" ]] && exit 0
+
+KP_THEME="classic"
+
+INI="$CONFIG_HOME/keepassxc/keepassxc.ini"
+OLD=""
+[[ -f "$INI" ]] && OLD=$(sed -nE 's/^[[:space:]]*ApplicationTheme[[:space:]]*=[[:space:]]*([A-Za-z]+).*/\1/Ip' "$INI" | tail -1)
+
+python3 "$PLUGIN_DIR/bin/keepassxc-theme.py" "$KP_THEME" >/dev/null
+
+# Apply live only when the light/dark nature actually changed AND KeePassXC is
+# running. A dark->dark switch needs no restart. Restarting locks the database,
+# so we do it as rarely as possible.
+if [[ "$OLD" != "$KP_THEME" ]] && pgrep -x keepassxc >/dev/null 2>&1; then
+  pkill -x keepassxc 2>/dev/null || true
+  sleep 1
+  if command -v uwsm-app >/dev/null 2>&1; then
+    (uwsm-app -- keepassxc >/dev/null 2>&1 &)
+  else
+    (setsid keepassxc >/dev/null 2>&1 &)
+  fi
+fi

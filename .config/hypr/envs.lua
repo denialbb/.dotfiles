@@ -5,3 +5,4 @@ hl.env("HYPRCURSOR_THEME", "oreo_white_cursors")
 hl.env("HYPRCURSOR_SIZE", "20")
 
 hl.env("OMARCHY_THEME_SKIP_BACKGROUND", "1")
+hl.env("QT_STYLE_OVERRIDE", "kvantum")
