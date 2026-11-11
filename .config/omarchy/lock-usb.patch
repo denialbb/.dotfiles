@@ -1,6 +1,7 @@
 --- /tmp/pristine/usr/share/omarchy/shell/plugins/lock/Service.qml	2026-09-08 20:30:57.000000000 +0200
 +++ /tmp/modified/usr/share/omarchy/shell/plugins/lock/Service.qml	2026-09-12 00:51:35.614330437 +0200
 @@ -22,6 +22,10 @@
+   property bool authenticatingPassword: false
    property bool fingerprintAuthenticating: false
    property bool passwordPamConfigured: false
    property bool fingerprintConfigured: false
@@ -8,9 +9,7 @@
 +  // unlock. usbKeyPresent = a pam_usb volume for this user is mounted.
 +  property bool usbKeyPresent: false
 +  property bool usbAuthenticating: false
-   property bool previewVisible: false
-   property string enteredPassword: ""
-   property string pendingPassword: ""
+   property int fingerprintUnreachedStreak: 0
 @@ -35,7 +39,7 @@
    property bool strandedLockResolved: false
  
